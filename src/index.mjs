@@ -32,7 +32,7 @@ var faceOverlay = null;
 var faceFeedbackBox = null;
 var gazeDot = null;
 // Why is this not in webgazer.params ?
-var debugVideoLoc = '';
+var debugVideoLoc = null;
 
 /*
  * Initialises variables used to store accuracy eigenValues
@@ -307,7 +307,7 @@ async function loop() {
       var x = 0;
       var y = 0;
       var len = smoothingVals.length;
-      for (var d in smoothingVals.data) {
+      for (var d = 0; d < smoothingVals.length; d++) {
         x += smoothingVals.get(d).x;
         y += smoothingVals.get(d).y;
       }
