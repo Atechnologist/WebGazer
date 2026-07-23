@@ -32,30 +32,35 @@ jobs:
       - name: Compile WebGazer assets
         run: npm run build
 
-      - name: Structure and Inject Custom Layout Assets
+      - name: Isolate and Package Web Assets
         run: |
-          # 1. WebGazer's build step cleans the dist/ folder, so we make sure it definitely exists now
-          mkdir -p dist
-          
-          # 2. If WebGazer built into a variant 'build' folder, copy its contents to 'dist'
+          # 1. Create a clean, production-only deployment folder
+          mkdir -p _site
+          mkdir -p _site/dist
+          mkdir -p _site/assets/css
+          mkdir -p _site/assets/js
+
+          # 2. Copy the natively compiled WebGazer bundle
           if [ -d "build" ] && [ "$(ls -A build)" ]; then
-            cp -r build/* dist/
+            cp -r build/* _site/dist/
+          elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
+            cp -r dist/* _site/dist/
           fi
 
-          # 3. Handle standalone app script file fallback mappings
-          mkdir -p assets/css assets/js
-          
-          # 4. Verify workspace integrity explicitly so logs show every file captured
-          echo "=== VERIFYING ROOT DIRECTORY STATE ==="
-          ls -la
-          echo "=== VERIFYING DIST DIRECTORY STATE ==="
-          ls -la dist/
+          # 3. Safely copy your personal UI assets and index file
+          cp index.html _site/
+          if [ -d "assets/css" ]; then cp -r assets/css/* _site/assets/css/; fi
+          if [ -d "assets/js" ]; then cp -r assets/js/* _site/assets/js/; fi
+
+          # 4. Print explicit layout check to GitHub Actions console log window
+          echo "=== CLEAN PRODUCTION DEPLOYMENT MAP ==="
+          ls -R _site
 
       - name: Upload Static Website Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          # Packages your root (index.html), assets/, and your freshly populated dist/ folder
-          path: '.'
+          # Pointing directly to our clean folder bypasses node_modules conflicts entirely
+          path: '_site'
 
   deploy-to-pages:
     needs: build-and-compile
