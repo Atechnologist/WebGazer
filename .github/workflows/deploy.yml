@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-      - master # Triggers on either modern default branch naming convention
-  workflow_dispatch: # Allows manual trigger testing inside the Actions tab
+      - master
+  workflow_dispatch:
 
-# Set concurrency rules to prevent overlapping deployments from consecutive pushes
 concurrency:
   group: "pages"
   cancel-in-progress: true
@@ -22,35 +21,42 @@ jobs:
       - name: Set up NodeJS Environment
         uses: actions/setup-node@v4
         with:
-          node-version: 18 # WebGazer's build setup is tested on Node v16/v18
+          node-version: 18
           cache: 'npm'
 
       - name: Install dependencies
         run: |
-          # 1. Force the older, stable layout of filemanager-webpack-plugin
           npm install filemanager-webpack-plugin@3.0.0 --save-dev
-          
-          # 2. Complete standard dependency parsing
           npm install
 
       - name: Compile WebGazer assets
         run: npm run build
 
-
-      - name: Compile WebGazer assets
-        run: npm run build # Compiles src/ into dist/webgazer.js using Webpack
+      - name: Verify and Organize Assets
+        run: |
+          # Ensure a target dist directory exists in the root for index.html to read
+          mkdir -p dist
+          
+          # If the WebGazer build outputs files to a subfolder, copy them to the root dist folder
+          if [ -d "build" ]; then
+            cp -r build/* dist/ || true
+          fi
+          
+          # Debug verification step so you can check the log tree state
+          echo "=== Verifying packed site assets ==="
+          ls -la
+          ls -la dist/ || echo "Dist directory empty!"
 
       - name: Upload Static Website Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          # Uploads the entire workspace containing index.html, assets, and compiled dist/
+          # Uploads everything (index.html, assets/, and the verified dist/)
           path: '.'
 
   deploy-to-pages:
     needs: build-and-compile
     runs-on: ubuntu-latest
     
-    # Define exact system permission blocks required for GitHub Pages deployments
     permissions:
       pages: write
       id-token: write
