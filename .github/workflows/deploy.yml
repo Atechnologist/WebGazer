@@ -1,0 +1,56 @@
+name: Compile WebGazer and Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master # Triggers on either modern default branch naming convention
+  workflow_dispatch: # Allows manual trigger testing inside the Actions tab
+
+# Set concurrency rules to prevent overlapping deployments from consecutive pushes
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up NodeJS Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18 # WebGazer's build setup is tested on Node v16/v18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Compile WebGazer assets
+        run: npm run build # Compiles src/ into dist/webgazer.js using Webpack
+
+      - name: Upload Static Website Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Uploads the entire workspace containing index.html, assets, and compiled dist/
+          path: '.'
+
+  deploy-to-pages:
+    needs: build-and-compile
+    runs-on: ubuntu-latest
+    
+    # Define exact system permission blocks required for GitHub Pages deployments
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to Live Web URL
+        id: deployment
+        uses: actions/deploy-pages@v4
