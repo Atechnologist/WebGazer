@@ -35,7 +35,9 @@ async function initSystem() {
         log(`Active Engine: ${tf.getBackend()}`);
         
         log("Downloading neural face mesh patterns...");
-        model = await facemesh.load({ maxFaces: 1 });
+        // WebGazer contains its own internal facemesh / regression modules
+        model = webgazer; 
+
         
         log("Opening front camera feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
