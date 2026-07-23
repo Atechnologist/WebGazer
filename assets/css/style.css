@@ -1,0 +1,38 @@
+body, html {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background-color: #111; font-family: sans-serif;
+}
+#webcam {
+    position: absolute; width: 90px; height: 120px;
+    bottom: 10px; right: 10px; border-radius: 8px;
+    transform: scaleX(-1); border: 2px solid #333; z-index: 10;
+    object-fit: cover;
+}
+.calib-dot {
+    position: absolute; width: 40px; height: 40px;
+    background-color: #ff3366; border-radius: 50%;
+    transform: translate(-50%, -50%); display: none; z-index: 20;
+    box-shadow: 0 0 15px #ff3366;
+}
+#gaze-pointer {
+    position: absolute; width: 22px; height: 22px;
+    background-color: #00ffcc; border-radius: 50%;
+    transform: translate(-50%, -50%); display: none; z-index: 30;
+    box-shadow: 0 0 10px #00ffcc; pointer-events: none;
+}
+#ui-overlay {
+    position: absolute; top: 45%; left: 50%;
+    transform: translate(-50%, -50%); text-align: center;
+    color: white; z-index: 15; width: 80%;
+}
+#debug-console {
+    position: absolute; top: 10px; left: 10px;
+    color: #00ffcc; font-family: monospace; font-size: 11px;
+    z-index: 40; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 4px;
+    max-width: 80%; word-break: break-all;
+}
+button {
+    padding: 15px 30px; font-size: 16px; font-weight: bold;
+    background-color: #00ffcc; border: none; border-radius: 6px; cursor: pointer;
+}
+button:disabled { background-color: #333; color: #666; cursor: not-allowed; }
