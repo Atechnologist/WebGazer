@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Gaze Tracker</title>
+    
+    <!-- External Library CDN Dependencies -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+
+    <!-- Custom CSS Link -->
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+    <div id="debug-console">System Log: Downloading libraries...</div>
+    <video id="webcam" autoplay playsinline muted></video>
+    <div id="calib-dot" class="calib-dot"></div>
+    <div id="gaze-pointer"></div>
+
+    <div id="ui-overlay">
+        <h2 id="status-text">Loading Face AI Models...</h2>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+    </div>
+
+    <!-- Custom Tracker Script Link -->
+    <script src="assets/js/app.js"></script>
+</body>
+</html>
