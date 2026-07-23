@@ -5,13 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Gaze Tracker</title>
     
-    <!-- External Library CDN Dependencies -->
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://jsdelivr.net"></script>
+    <!-- 1. REMOVE the 4 broken CDN scripts and REPLACE them with this single line -->
+    <script src="dist/webgazer.js"></script>
 
-    <!-- Custom CSS Link -->
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -26,7 +22,8 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- Custom Tracker Script Link -->
+    <!-- 2. KEEP THIS LINK! This runs your custom UI buttons, calibration, and loops -->
     <script src="assets/js/app.js"></script>
 </body>
 </html>
+
