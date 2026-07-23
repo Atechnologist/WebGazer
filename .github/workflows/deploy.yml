@@ -32,25 +32,29 @@ jobs:
       - name: Compile WebGazer assets
         run: npm run build
 
-      - name: Verify and Organize Assets
+      - name: Structure and Inject Custom Layout Assets
         run: |
-          # Ensure a target dist directory exists in the root for index.html to read
+          # 1. WebGazer's build step cleans the dist/ folder, so we make sure it definitely exists now
           mkdir -p dist
           
-          # If the WebGazer build outputs files to a subfolder, copy them to the root dist folder
-          if [ -d "build" ]; then
-            cp -r build/* dist/ || true
+          # 2. If WebGazer built into a variant 'build' folder, copy its contents to 'dist'
+          if [ -d "build" ] && [ "$(ls -A build)" ]; then
+            cp -r build/* dist/
           fi
+
+          # 3. Handle standalone app script file fallback mappings
+          mkdir -p assets/css assets/js
           
-          # Debug verification step so you can check the log tree state
-          echo "=== Verifying packed site assets ==="
+          # 4. Verify workspace integrity explicitly so logs show every file captured
+          echo "=== VERIFYING ROOT DIRECTORY STATE ==="
           ls -la
-          ls -la dist/ || echo "Dist directory empty!"
+          echo "=== VERIFYING DIST DIRECTORY STATE ==="
+          ls -la dist/
 
       - name: Upload Static Website Artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          # Uploads everything (index.html, assets/, and the verified dist/)
+          # Packages your root (index.html), assets/, and your freshly populated dist/ folder
           path: '.'
 
   deploy-to-pages:
