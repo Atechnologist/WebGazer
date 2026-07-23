@@ -26,7 +26,16 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          # 1. Force the older, stable layout of filemanager-webpack-plugin
+          npm install filemanager-webpack-plugin@3.0.0 --save-dev
+          
+          # 2. Complete standard dependency parsing
+          npm install
+
+      - name: Compile WebGazer assets
+        run: npm run build
+
 
       - name: Compile WebGazer assets
         run: npm run build # Compiles src/ into dist/webgazer.js using Webpack
