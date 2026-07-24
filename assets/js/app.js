@@ -8,7 +8,6 @@ const debugLog = document.getElementById('debug-console');
 let calibrationStep = 0;
 let isCalibrated = false;
 
-// Fixed Target screen anchors mapping sequence coordinates
 const screenTargets = [
     { x: 40, y: 40 },
     { x: window.innerWidth - 40, y: 40 },
@@ -18,27 +17,28 @@ const screenTargets = [
 
 function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
-// Replace the initSystem block in assets/js/app.js with this safe check variant:
 async function initSystem() {
     let checkAttempts = 0;
     
-    // Wait for async script injection block to populate the global window space
     while (typeof webgazer === 'undefined') {
         checkAttempts++;
         log(`Connecting to core module engine... (Attempt ${checkAttempts}/20)`);
-        
         if (checkAttempts > 20) {
             log("Boot Error: webgazer.js failed to load. Check browser network tab (F12).");
             statusText.innerText = "Setup stalled. File missing or 404 error.";
             return;
         }
-        // Wait 500ms before retrying
         await new Promise(resolve => setTimeout(resolve, 500)); 
     }
 
     try {
         log("Configuring background tracking parameters...");
-        
+
+        // FIX: Force WebGazer to fetch its MediaPipe weights and WASM blobs from the official jsDelivr CDN repository mirror
+        // This stops it from looking locally and hitting 404 errors on GitHub Pages subdirectories!
+        webgazer.params.facemeshLoaderScript = "https://jsdelivr.net";
+        webgazer.params.faceMeshWasmLocation = "https://jsdelivr.net";
+
         // Initialize WebGazer engine properties
         await webgazer.setRegression('ridge')
             .setGazeListener((data, clock) => {
@@ -65,13 +65,10 @@ async function initSystem() {
     }
 }
 
-
 function startCalibration() {
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
-    
-    // Clear any previous regression points to ensure fresh calculations
     webgazer.clearData();
     showNextCalibrationDot();
 }
@@ -90,25 +87,19 @@ function showNextCalibrationDot() {
     }
 }
 
-// Global window event listener mapping taps directly to the WebGazer system
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
     if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn') return;
 
-    // Grab the current point coordinate targets
     const currentPoint = screenTargets[calibrationStep];
-
     log(`Calibrating point ${calibrationStep + 1} at X: ${currentPoint.x}, Y: ${currentPoint.y}`);
-    
-    // Feed the data straight into WebGazer's native mapping array
     webgazer.recordScreenPosition(currentPoint.x, currentPoint.y, 'click');
 
     calibrationStep++;
     showNextCalibrationDot();
 });
 
-// FIX: Instead of running instantly on window load, ensure script execution buffers 1 second
 window.onload = () => {
     setTimeout(initSystem, 1000);
 };
