@@ -34,26 +34,31 @@ jobs:
 
       - name: Isolate and Package Web Assets
         run: |
-          # 1. Create a clean, production-only deployment folder
+          # 1. Create a clean staging folder for GitHub Pages
           mkdir -p _site
           mkdir -p _site/dist
           mkdir -p _site/assets/css
           mkdir -p _site/assets/js
 
-          # 2. Copy the natively compiled WebGazer bundle
-          if [ -d "build" ] && [ "$(ls -A build)" ]; then
+          # 2. Extract WebGazer from Webpack's native 'build' directory and move it to 'dist'
+          if [ -d "build" ]; then
             cp -r build/* _site/dist/
-          elif [ -d "dist" ] && [ "$(ls -A dist)" ]; then
+            echo "Successfully copied WebGazer from build/ directory."
+          elif [ -d "dist" ]; then
             cp -r dist/* _site/dist/
+            echo "Successfully copied WebGazer from dist/ directory."
+          else
+            echo "ERROR: No compiled build or dist directory found!"
+            exit 1
           fi
 
-          # 3. Safely copy your personal UI assets and index file
+          # 3. Copy your custom layout files into the isolated staging area
           cp index.html _site/
-          if [ -d "assets/css" ]; then cp -r assets/css/* _site/assets/css/; fi
-          if [ -d "assets/js" ]; then cp -r assets/js/* _site/assets/js/; fi
+          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
+          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
 
-          # 4. Print explicit layout check to GitHub Actions console log window
-          echo "=== CLEAN PRODUCTION DEPLOYMENT MAP ==="
+          # 4. Explicit verification listing so you can check the logs
+          echo "=== PRODUCTION SITE CONTENTS ==="
           ls -R _site
 
       - name: Upload Static Website Artifacts
