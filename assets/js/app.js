@@ -20,11 +20,12 @@ function log(msg) { debugLog.innerText = "System Log: " + msg; }
 async function initSystem() {
     let checkAttempts = 0;
     
+    // 1. Wait for WebGazer script tag downloading to finish
     while (typeof webgazer === 'undefined') {
         checkAttempts++;
         log(`Connecting to core module engine... (Attempt ${checkAttempts}/20)`);
         if (checkAttempts > 20) {
-            log("Boot Error: webgazer.js failed to load. Check browser network tab (F12).");
+            log("Boot Error: webgazer.js failed to load. Check browser network tab.");
             statusText.innerText = "Setup stalled. File missing or 404 error.";
             return;
         }
@@ -32,10 +33,26 @@ async function initSystem() {
     }
 
     try {
-        log("Configuring background tracking parameters...");
+        log("Requesting physical webcam hardware permissions...");
+        
+        // 2. FIX: Activate the user's front-facing camera manually first!
+        // This ensures WebGazer receives a live media stream instead of crashing on 'No stream'.
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        
+        // Bind the live track to your HTML layout skeleton element
+        videoElement.srcObject = stream;
+        
+        // Wait until the camera hardware initializes and sends its first video frame dimensions
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => resolve();
+        });
 
+        log("Webcam frame pipeline verified. Synchronizing AI tracker...");
 
-        // Initialize WebGazer engine properties
+        // 3. Initialize WebGazer using our pre-activated video player framework
         await webgazer.setRegression('ridge')
             .setGazeListener((data, clock) => {
                 if (isCalibrated && data) {
@@ -46,17 +63,17 @@ async function initSystem() {
             .saveDataAcrossSessions(false)
             .begin();
 
-        // Hide default WebGazer canvas containers
+        // Hide default WebGazer debug elements so your custom layout displays cleanly
         webgazer.showVideoPreview(false)
                  .showPredictionPoints(false);
 
-        log("WebGazer engine active. Camera streaming synced.");
+        log("Gaze tracking active. Hardware synced.");
         statusText.innerText = "Hold your tablet or phone steady";
         startBtn.disabled = false;
 
     } catch (err) {
         log("Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Check browser console logs.";
+        statusText.innerText = "Camera Access Blocked. Ensure page runs over HTTPS.";
         console.error(err);
     }
 }
@@ -96,6 +113,7 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
+// Run initialization code 1 second after window elements prepare natively
 window.onload = () => {
     setTimeout(initSystem, 1000);
 };
