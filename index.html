@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Gaze Tracker</title>
     
-    <!-- FIX: Replaced local dist/webgazer.js with the stable official working production module -->
-    <script src="https://webgazer.cs.brown.edu/webgazer.js" async></script>
+    <!-- 1. Force load the absolute global MediaPipe FaceMesh engine first -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+
+    <!-- 2. Load the official WebGazer engine script -->
+    <script src="https://brown.edu" async></script>
 
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -22,7 +25,7 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- Changed path to reference local folder directly -->
+    <!-- Your custom app logic script -->
     <script src="assets/js/app.js"></script>
 </body>
 </html>
