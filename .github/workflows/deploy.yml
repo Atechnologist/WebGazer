@@ -24,32 +24,35 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout repository code
-        uses: actions/checkout@v4
-
       - name: Isolate and Package Web Assets
         run: |
-          # 1. Create standard production folder trees
+          # 1. Create standard production folder trees (No external downloads required!)
           mkdir -p _site
+          mkdir -p _site/dist
           mkdir -p _site/assets/css
           mkdir -p _site/assets/js
 
-          # 2. FIX: Create the exact nested folder structural path WebGazer's interior code is searching for
-          mkdir -p _site/WebGazer/mediapipe/face_mesh
+          # 2. Extract freshly built tracking assets out of local directories
+          if [ -d "build" ]; then
+            cp -r build/* _site/dist/
+            echo "Copied asset files from built project directory."
+          elif [ -d "dist" ]; then
+            cp -r dist/* _site/dist/
+            echo "Copied asset files from local project distribution directory."
+          else
+            echo "ERROR: Local Webpack compiler failed to output code layers!"
+            exit 1
+          fi
 
-          # 3. Pull validated operational model binaries straight from MediaPipe's server array into your deployment
-          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_packed_assets_loader.js
-          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh.binarypb
-          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_simd_wasm_bin.js
-          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_wasm_bin.js
-
-          # 4. Copy your customized tracking application interface files into place
+          # 3. Pull your custom design layers into the clean hosting target workspace
           cp index.html _site/
           if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
           if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
 
-          echo "=== PRODUCTION SITE CONTENTS VERIFICATION ==="
+          # 4. Print map layout for checking step logs
+          echo "=== PRODUCTION ARCHIVE LAYOUT ==="
           ls -R _site
+
 
       - name: Upload Static Website Artifacts
         uses: actions/upload-pages-artifact@v3
