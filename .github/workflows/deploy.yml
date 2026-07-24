@@ -1,4 +1,4 @@
-name: Compile WebGazer and Deploy Pages
+name: Deploy Safe Gaze Tracker to Pages
 
 on:
   push:
@@ -12,73 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-compile:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository code
-        uses: actions/checkout@v4
-
-      - name: Set up NodeJS Environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: |
-          npm install filemanager-webpack-plugin@3.0.0 --save-dev
-          npm install
-
-      - name: Compile WebGazer assets
-        run: npm run build
-
-      - name: Isolate and Package Web Assets
-        run: |
-          # 1. Create clean production staging structure folders
-          mkdir -p _site
-          mkdir -p _site/dist
-          mkdir -p _site/assets/css
-          mkdir -p _site/assets/js
-
-          # 2. FIX: Move ALL files from the compilation target folder (including WASM binaries/data assets)
-          if [ -d "build" ]; then
-            cp -r build/* _site/dist/
-            echo "Copied entire build/ asset tree completely."
-          elif [ -d "dist" ]; then
-            cp -r dist/* _site/dist/
-            echo "Copied entire dist/ asset tree completely."
-          else
-            echo "ERROR: No compiled directories found!"
-            exit 1
-          fi
-
-          # 3. Copy your personal UI configurations into place
-          cp index.html _site/
-          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
-          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
-
-          # 4. Debug output tree checking
-          echo "=== PRODUCTION SITE CONTENTS ==="
-          ls -R _site
-
-
-          # 3. Copy your custom layout files into the isolated staging area
-          cp index.html _site/
-          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
-          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
-
-          # 4. Explicit verification listing so you can check the logs
-          echo "=== PRODUCTION SITE CONTENTS ==="
-          ls -R _site
-
-      - name: Upload Static Website Artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          # Pointing directly to our clean folder bypasses node_modules conflicts entirely
-          path: '_site'
-
   deploy-to-pages:
-    needs: build-and-compile
     runs-on: ubuntu-latest
     
     permissions:
@@ -90,6 +24,38 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Isolate and Package Web Assets
+        run: |
+          # 1. Create standard production folder trees
+          mkdir -p _site
+          mkdir -p _site/assets/css
+          mkdir -p _site/assets/js
+
+          # 2. FIX: Create the exact nested folder structural path WebGazer's interior code is searching for
+          mkdir -p _site/WebGazer/mediapipe/face_mesh
+
+          # 3. Pull validated operational model binaries straight from MediaPipe's server array into your deployment
+          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_packed_assets_loader.js
+          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh.binarypb
+          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_simd_wasm_bin.js
+          curl -L "https://jsdelivr.net" -o _site/WebGazer/mediapipe/face_mesh/face_mesh_solution_wasm_bin.js
+
+          # 4. Copy your customized tracking application interface files into place
+          cp index.html _site/
+          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
+          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
+
+          echo "=== PRODUCTION SITE CONTENTS VERIFICATION ==="
+          ls -R _site
+
+      - name: Upload Static Website Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
       - name: Deploy to Live Web URL
         id: deployment
         uses: actions/deploy-pages@v4
