@@ -1,4 +1,4 @@
-name: Deploy Safe Gaze Tracker to Pages
+name: Deploy WebGazer Custom Pages
 
 on:
   push:
@@ -12,7 +12,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  package-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Isolate and Package Web Assets
+        run: |
+          # 1. Create standard staging target production trees
+          mkdir -p _site
+          mkdir -p _site/dist
+          mkdir -p _site/assets/css
+          mkdir -p _site/assets/js
+
+          # 2. Secure WebGazer's official pre-compiled engine bundle file directly 
+          # This replaces manual Webpack compilation with the tested, stable framework binary
+          curl -L "https://webgazer.cs.brown.edu/webgazer.js" -o _site/dist/webgazer.js
+
+          # 3. Pull your custom interface layers into the clean deployment folder
+          if [ -f "index.html" ]; then cp index.html _site/; fi
+          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
+          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
+
+          # 4. Create an empty file to explicitly prevent GitHub Pages from running Jekyll transformations
+          touch _site/.nojekyll
+
+          # 5. Output structure maps for verification
+          echo "=== PRODUCTION SITE CONTENTS ==="
+          ls -R _site
+
+      - name: Upload Static Website Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
   deploy-to-pages:
+    needs: package-and-deploy
     runs-on: ubuntu-latest
     
     permissions:
@@ -24,63 +60,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Compile WebGazer assets
-        run: |
-          # 1. Force a global build execution or compile directly with Webpack
-          if npm run build; then
-            echo "Standard package build executed."
-          else
-            echo "Build command failed, falling back to direct Webpack compilation..."
-            npx webpack --mode production || npx webpack || true
-          fi
-
-      - name: Isolate and Package Web Assets
-        run: |
-          # 1. Create clean production workspace folders
-          mkdir -p _site
-          mkdir -p _site/dist
-          mkdir -p _site/assets/css
-          mkdir -p _site/assets/js
-
-          # 2. Dynamic multi-path discovery fallback script
-          # Searches all potential compiler output destinations in the WebGazer project structure
-          if [ -f "build/webgazer.js" ]; then
-            cp -r build/* _site/dist/
-          elif [ -f "dist/webgazer.js" ]; then
-            cp -r dist/* _site/dist/
-          elif [ -f "www/js/webgazer.js" ]; then
-            cp www/js/webgazer.js _site/dist/
-          elif [ -f "src/webgazer.js" ] && [ ! -f "build/webgazer.js" ]; then
-            # Last-resort fallback: copy raw src file if building failed completely
-            cp src/webgazer.js _site/dist/
-          else
-            # Deep search fallback to find any compiled webgazer module file in the project
-            FOUND_PATH=$(find . -name "webgazer.js" -not -path "*/node_modules/*" -not -path "*/_site/*" | head -n 1)
-            if [ ! -z "$FOUND_PATH" ]; then
-              cp "$FOUND_PATH" _site/dist/webgazer.js
-              echo "Discovered compiled asset dynamically at: $FOUND_PATH"
-            else
-              echo "ERROR: Could not locate a valid webgazer.js file anywhere in the workspace tree."
-              exit 1
-            fi
-          fi
-
-          # 3. Pull your custom interface design layers into the hosting target workspace
-          cp index.html _site/
-          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
-          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
-
-          # 4. Print map layout verification log
-          echo "=== PRODUCTION ARCHIVE LAYOUT ==="
-          ls -R _site
-
-
-
-      - name: Upload Static Website Artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '_site'
-
       - name: Deploy to Live Web URL
         id: deployment
         uses: actions/deploy-pages@v4
+        
