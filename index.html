@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Gaze Tracker</title>
     
-    <!-- FIX: Added './' for relative subdirectory mapping and the mandatory 'async' tag -->
-    <script src="./dist/webgazer.js" async></script>
-
-    <link rel="stylesheet" href="./assets/css/style.css">
+    <!-- Changed to relative paths that map across subdirectories accurately -->
+    <script src="dist/webgazer.js" async></script>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
 
@@ -22,7 +21,7 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- Custom Tracker Script Link -->
-    <script src="./assets/js/app.js"></script>
+    <!-- Changed path to reference local folder directly -->
+    <script src="assets/js/app.js"></script>
 </body>
 </html>
