@@ -19,20 +19,31 @@ const screenTargets = [
 
 function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
+// Replace the initSystem block in assets/js/app.js with this safe check variant:
 async function initSystem() {
-    try {
-        log("Checking for WebGazer deployment configuration...");
-        if (typeof webgazer === 'undefined') {
-            throw new Error("WebGazer engine not found. Ensure script tags match dist paths.");
-        }
+    let checkAttempts = 0;
+    
+    // Wait for async script injection block to populate the global window space
+    while (typeof webgazer === 'undefined') {
+        checkAttempts++;
+        log(`Connecting to core module engine... (Attempt ${checkAttempts}/20)`);
         
+        if (checkAttempts > 20) {
+            log("Boot Error: webgazer.js failed to load. Check browser network tab (F12).");
+            statusText.innerText = "Setup stalled. File missing or 404 error.";
+            return;
+        }
+        // Wait 500ms before retrying
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+    }
+
+    try {
         log("Configuring background tracking parameters...");
         
-        // 1. Initialise WebGazer directly instead of managing custom loops
-        await webgazer.setRegression('ridge') // Use WebGazer's powerful built-in ridge regression
+        // Initialize WebGazer engine properties
+        await webgazer.setRegression('ridge')
             .setGazeListener((data, clock) => {
                 if (isCalibrated && data) {
-                    // Update pointer with smoothed coordinates out of the engine
                     gazePointer.style.left = `${data.x}px`;
                     gazePointer.style.top = `${data.y}px`;
                 }
@@ -40,7 +51,7 @@ async function initSystem() {
             .saveDataAcrossSessions(false)
             .begin();
 
-        // 2. Hide WebGazer's default canvas elements so your custom layout shows
+        // Hide default WebGazer canvas containers
         webgazer.showVideoPreview(false)
                  .showPredictionPoints(false);
 
@@ -54,6 +65,7 @@ async function initSystem() {
         console.error(err);
     }
 }
+
 
 function startCalibration() {
     startBtn.style.display = 'none';
@@ -97,6 +109,8 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
-// Initialise application sequence on load window
-window.onload = initSystem;
+// FIX: Instead of running instantly on window load, ensure script execution buffers 1 second
+window.onload = () => {
+    setTimeout(initSystem, 1000);
+};
 </script>
