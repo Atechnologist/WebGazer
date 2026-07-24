@@ -20,7 +20,7 @@ function log(msg) { debugLog.innerText = "System Log: " + msg; }
 async function initSystem() {
     let checkAttempts = 0;
     
-    // 1. Wait for WebGazer script tag downloading to finish
+    // Wait for the asynchronous WebGazer download loop to settle down
     while (typeof webgazer === 'undefined') {
         checkAttempts++;
         log(`Connecting to core module engine... (Attempt ${checkAttempts}/20)`);
@@ -35,24 +35,28 @@ async function initSystem() {
     try {
         log("Requesting physical webcam hardware permissions...");
         
-        // 2. FIX: Activate the user's front-facing camera manually first!
-        // This ensures WebGazer receives a live media stream instead of crashing on 'No stream'.
+        // Activate the phone/tablet webcam stream manually
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
             audio: false
         });
         
-        // Bind the live track to your HTML layout skeleton element
         videoElement.srcObject = stream;
         
-        // Wait until the camera hardware initializes and sends its first video frame dimensions
         await new Promise((resolve) => {
             videoElement.onloadedmetadata = () => resolve();
         });
 
-        log("Webcam frame pipeline verified. Synchronizing AI tracker...");
+        log("Webcam operational. Injecting global CDN parameters...");
 
-        // 3. Initialize WebGazer using our pre-activated video player framework
+        // HARD OVERRIDE: This stops WebGazer from generating local 'WebGazer/mediapipe/' requests
+        // and forces the engine to load assets from standard cloud servers.
+        if (webgazer.params) {
+            webgazer.params.facemeshLoaderScript = "https://jsdelivr.net";
+            webgazer.params.faceMeshWasmLocation = "https://jsdelivr.net";
+        }
+
+        // Initialize WebGazer using our pre-activated video stream
         await webgazer.setRegression('ridge')
             .setGazeListener((data, clock) => {
                 if (isCalibrated && data) {
@@ -63,7 +67,7 @@ async function initSystem() {
             .saveDataAcrossSessions(false)
             .begin();
 
-        // Hide default WebGazer debug elements so your custom layout displays cleanly
+        // Hide WebGazer's default canvas overlays
         webgazer.showVideoPreview(false)
                  .showPredictionPoints(false);
 
@@ -77,6 +81,7 @@ async function initSystem() {
         console.error(err);
     }
 }
+
 
 function startCalibration() {
     startBtn.style.display = 'none';
