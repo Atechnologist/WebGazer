@@ -34,10 +34,6 @@ async function initSystem() {
     try {
         log("Configuring background tracking parameters...");
 
-        // FIX: Force WebGazer to fetch its MediaPipe weights and WASM blobs from the official jsDelivr CDN repository mirror
-        // This stops it from looking locally and hitting 404 errors on GitHub Pages subdirectories!
-        webgazer.params.facemeshLoaderScript = "https://jsdelivr.net";
-        webgazer.params.faceMeshWasmLocation = "https://jsdelivr.net";
 
         // Initialize WebGazer engine properties
         await webgazer.setRegression('ridge')
