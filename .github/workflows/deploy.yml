@@ -34,23 +34,33 @@ jobs:
 
       - name: Isolate and Package Web Assets
         run: |
-          # 1. Create a clean staging folder for GitHub Pages
+          # 1. Create clean production staging structure folders
           mkdir -p _site
           mkdir -p _site/dist
           mkdir -p _site/assets/css
           mkdir -p _site/assets/js
 
-          # 2. Extract WebGazer from Webpack's native 'build' directory and move it to 'dist'
+          # 2. FIX: Move ALL files from the compilation target folder (including WASM binaries/data assets)
           if [ -d "build" ]; then
             cp -r build/* _site/dist/
-            echo "Successfully copied WebGazer from build/ directory."
+            echo "Copied entire build/ asset tree completely."
           elif [ -d "dist" ]; then
             cp -r dist/* _site/dist/
-            echo "Successfully copied WebGazer from dist/ directory."
+            echo "Copied entire dist/ asset tree completely."
           else
-            echo "ERROR: No compiled build or dist directory found!"
+            echo "ERROR: No compiled directories found!"
             exit 1
           fi
+
+          # 3. Copy your personal UI configurations into place
+          cp index.html _site/
+          if [ -d "assets/css" ] && [ "$(ls -A assets/css)" ]; then cp -r assets/css/* _site/assets/css/; fi
+          if [ -d "assets/js" ] && [ "$(ls -A assets/js)" ]; then cp -r assets/js/* _site/assets/js/; fi
+
+          # 4. Debug output tree checking
+          echo "=== PRODUCTION SITE CONTENTS ==="
+          ls -R _site
+
 
           # 3. Copy your custom layout files into the isolated staging area
           cp index.html _site/
