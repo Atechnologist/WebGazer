@@ -1,4 +1,3 @@
-<script>
 const videoElement = document.getElementById('webcam');
 const calibDot = document.getElementById('calib-dot');
 const gazePointer = document.getElementById('gaze-pointer');
@@ -113,4 +112,3 @@ window.addEventListener(triggerEvent, (e) => {
 window.onload = () => {
     setTimeout(initSystem, 1000);
 };
-</script>
