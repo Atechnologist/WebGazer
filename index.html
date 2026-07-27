@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Fixed Engine</title>
+    <title>Mobile Gaze Tracker - Pinned Engine</title>
     
-    <!-- Loaded from your OWN secure root domain directory path. Eradicates CORS blocks -->
-    <script src="assets/js/vision_bundle.js"></script>
+    <!-- FIX 1: Pin the browser bundle explicitly to stable version 0.10.8 -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
     <style>
         body, html {
@@ -94,23 +94,22 @@
             return;
         }
 
-        // Grab factory out of window namespace object
         const mediaPipeVisionFactory = window.createMediaPipeVision;
         if (!mediaPipeVisionFactory) {
-            log("Boot Error: Core library properties failed to mount locally.");
+            log("Boot Error: Core library properties failed to compile onto window.");
             return;
         }
 
         try {
-            log("Configuring neural face mesh layers...");
-
+            log("Downloading neural face mesh files...");
+            
             const mediaPipeVisionInstance = await mediaPipeVisionFactory();
             const FilesetResolver = mediaPipeVisionInstance.FilesetResolver;
             const FaceLandmarker = mediaPipeVisionInstance.FaceLandmarker;
 
-            // Point directly to Google's absolute static binary bucket layer 
+            // FIX 2: Pin the runtime WebAssembly directory path directly to 0.10.8 to clear structural 404 blocks
             const filesetResolver = await FilesetResolver.forVisionTasks(
-            "https://jsdelivr.net"
+                "https://jsdelivr.net"
             );
 
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
@@ -124,7 +123,7 @@
                 numFaces: 1
             });
 
-            log("Requesting webcam access...");
+            log("Requesting physical webcam access permissions...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -140,7 +139,7 @@
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup stalled. Check network connection.";
+            statusText.innerText = "Setup stalled. Check console logs.";
             console.error(err);
         }
     }
@@ -154,9 +153,9 @@
                 const result = faceLandmarker.detectForVideo(videoElement, performance.now());
                 
                 if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0];
+                    const landmarks = result.faceLandmarks[0]; // Extract the array index properly
 
-                    // MediaPipe Core Eye Indices:
+                    // MediaPipe Landmarker Indices: 
                     // 33: Left outer corner, 133: Left inner corner, 468: Left pupil center
                     const outer = landmarks[33];
                     const inner = landmarks[133];
