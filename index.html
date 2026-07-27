@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Fixed UMD Pipeline</title>
+    <title>Mobile Gaze Tracker - Final Production Build</title>
     
-    <!-- 1. Universal Browser-Ready MediaPipe Core Engine (Bypasses CORS module restrictions) -->
+    <!-- Unified Browser-Ready MediaPipe Core Engine Build -->
     <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
     <style>
@@ -88,19 +88,27 @@
     function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
     async function initSystem() {
-        // Safe verification check targeting the global browser workspace scope
-        const mediaPipeVision = window.Vision;
-        if (!mediaPipeVision) {
-            log("Boot Error: Core architecture engine missing from window namespace.");
+        // Enforce HTTPS security rules inside the log window panel
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            log("Security Block: Mobile hardware streams require HTTPS connection.");
+            statusText.innerText = "Deployment Error: Switch page to HTTPS.";
+            return;
+        }
+
+        // FIX: Target the exact global variable namespace exported by MediaPipe's UMD bundle
+        const mediaPipeVisionFactory = window.createMediaPipeVision;
+        if (!mediaPipeVisionFactory) {
+            log("Boot Error: Core library properties failed to compile onto window.");
             return;
         }
 
         try {
             log("Downloading neural face mesh files...");
             
-            // 2. Map global constructors cleanly out of the UMD package wrapper
-            const FilesetResolver = mediaPipeVision.FilesetResolver;
-            const FaceLandmarker = mediaPipeVision.FaceLandmarker;
+            // Initialize and compile constructors using the bundle loader function factory
+            const mediaPipeVisionInstance = await mediaPipeVisionFactory();
+            const FilesetResolver = mediaPipeVisionInstance.FilesetResolver;
+            const FaceLandmarker = mediaPipeVisionInstance.FaceLandmarker;
 
             const filesetResolver = await FilesetResolver.forVisionTasks(
                 "https://jsdelivr.net"
@@ -117,7 +125,7 @@
                 numFaces: 1
             });
 
-            log("Requesting webcam access...");
+            log("Requesting physical webcam access permissions...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -133,7 +141,7 @@
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup blocked. Verify page runs over HTTPS.";
+            statusText.innerText = "Setup stalled. Check console logs.";
             console.error(err);
         }
     }
@@ -147,10 +155,9 @@
                 const result = faceLandmarker.detectForVideo(videoElement, performance.now());
                 
                 if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0];
+                    const landmarks = result.faceLandmarks[0]; // Access the array index properly
 
-                    // Landmark node indices mapping pupil/eye structures:
-                    // 33: Left outer corner, 133: Left inner corner, 468: Left pupil center vector
+                    // Extract tracking parameters out of MediaPipe landmarker matrices
                     const outer = landmarks[33];
                     const inner = landmarks[133];
                     const pupil = landmarks[468];
@@ -226,17 +233,13 @@
 
         const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
         const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
+        gazePointer.style.left = ${avgX}px;
+        gazePointer.style.top = ${avgY}px;
+        }
+        window.startCalibration = startCalibration;
+        window.onload = () => {
+        setTimeout(initSystem, 1000);};
 
-        gazePointer.style.left = `${avgX}px`;
-        gazePointer.style.top = `${avgY}px`;
-    }
-
-    window.startCalibration = startCalibration;
-
-    // Run initialization 1 second after script mounts
-    window.onload = () => {
-        setTimeout(initSystem, 1000);
-    };
 </script>
 </body>
 </html>
