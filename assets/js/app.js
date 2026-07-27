@@ -26,13 +26,13 @@ function log(msg) { debugLog.innerText = "System Log: " + msg; }
 async function initSystem() {
     let checkAttempts = 0;
     
-    // FIX: Wait safely until the global window definitions finish binding completely
+    // FIX 1: Safely poll for the global variable properties attached inside the window context
     while (typeof window.FaceMesh === 'undefined' || typeof window.Camera === 'undefined') {
         checkAttempts++;
         log(`Connecting to Face Mesh engine... (Attempt ${checkAttempts}/20)`);
         if (checkAttempts > 20) {
-            log("Boot Error: MediaPipe modules failed to register. Check internet connection.");
-            statusText.innerText = "Setup stalled. Script blocked or 404.";
+            log("Boot Error: MediaPipe modules failed to register. Check network connection.");
+            statusText.innerText = "Setup stalled. Files missing or blocked.";
             return;
         }
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -41,14 +41,14 @@ async function initSystem() {
     try {
         log("Booting native Google FaceMesh pipeline layers...");
         
-        // Target structural window elements explicitly to clear definition issues
+        // Instantiate the object properties out of the window frame context directly
         faceMeshModel = new window.FaceMesh({
             locateFile: (file) => `https://jsdelivr.net{file}`
         });
 
         faceMeshModel.setOptions({
             maxNumFaces: 1,
-            refineLandmarks: true, // Forces loading of high-definition pupil/iris points
+            refineLandmarks: true, // Loads high-accuracy pupil/iris landmarks
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
         });
@@ -57,6 +57,7 @@ async function initSystem() {
 
         log("Requesting physical webcam streaming tokens...");
         
+        // Establish the camera framework instance out of the window namespace mapping wrapper
         const cameraInstance = new window.Camera(videoElement, {
             onFrame: async () => {
                 await faceMeshModel.send({ image: videoElement });
@@ -72,7 +73,8 @@ async function initSystem() {
 
     } catch (err) {
         log("Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Page must run over HTTPS.";
+        // FIX 2: Clear up the security block notice text so you know exactly why hardware access failed
+        statusText.innerText = "Camera Access Blocked. Page MUST run over HTTPS protocol link.";
         console.error(err);
     }
 }
@@ -84,7 +86,7 @@ function onFaceMeshResults(results) {
     }
 
     log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-    const landmarks = results.multiFaceLandmarks[0]; // Extract the first discovered target face map
+    const landmarks = results.multiFaceLandmarks[0];
 
     // MediaPipe RefineLandmarks Index Map:
     // 33 = Left Eye Outer Corner, 133 = Left Eye Inner Corner, 468 = Left Pupil Center
@@ -97,7 +99,6 @@ function onFaceMeshResults(results) {
         const eyeCenterY = (inner.y + outer.y) / 2;
         const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
 
-        // Normalize variations based on relative distances
         currentFeatures = {
             x: (pupil.x - eyeCenterX) / eyeWidth,
             y: (pupil.y - eyeCenterY) / eyeWidth
@@ -145,25 +146,21 @@ window.addEventListener(triggerEvent, (e) => {
 function processGazeMapping(ex, ey) {
     const { tl, tr, bl, br } = eyeGrid;
 
-    // Linear mapping across your custom layout anchors
     const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
 
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
 
-    // Bilinear map extrapolation onto target viewport coordinates
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
-    // Moving average buffer calculation
     smoothingBuffer.push({ x: targetX, y: targetY });
     if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();
 
     const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
 
-    // Render coordinates changes directly onto tracker pointer layout layer
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 }
