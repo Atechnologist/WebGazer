@@ -20,8 +20,8 @@ function log(msg) { debugLog.innerText = "System Log: " + msg; }
 async function initSystem() {
     let checkAttempts = 0;
     
-    // Wait for the asynchronous WebGazer download loop to settle down
-    while (typeof webgazer === 'undefined') {
+    // Updated check constraint to capture either regional global variable definition block
+    while (typeof webgazer === 'undefined' && typeof window.webgazer === 'undefined') {
         checkAttempts++;
         log(`Connecting to core module engine... (Attempt ${checkAttempts}/20)`);
         if (checkAttempts > 20) {
@@ -32,32 +32,30 @@ async function initSystem() {
         await new Promise(resolve => setTimeout(resolve, 500)); 
     }
 
+    // Ensure our local tracker code context matches the verified active window handle
+    const trackerInstance = typeof webgazer !== 'undefined' ? webgazer : window.webgazer;
+
     try {
         log("Requesting physical webcam hardware permissions...");
         
-        // Activate the phone/tablet webcam stream manually
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
             audio: false
         });
         
         videoElement.srcObject = stream;
-        
-        await new Promise((resolve) => {
-            videoElement.onloadedmetadata = () => resolve();
-        });
+        await new Promise((resolve) => { videoElement.onloadedmetadata = () => resolve(); });
 
         log("Webcam operational. Injecting global CDN parameters...");
 
-        // HARD OVERRIDE: This stops WebGazer from generating local 'WebGazer/mediapipe/' requests
-        // and forces the engine to load assets from standard cloud servers.
-        if (webgazer.params) {
-            webgazer.params.facemeshLoaderScript = "https://jsdelivr.net";
-            webgazer.params.faceMeshWasmLocation = "https://jsdelivr.net";
+        // Inject the explicit CDN path settings straight into the current runtime instance parameters
+        if (trackerInstance.params) {
+            trackerInstance.params.facemeshLoaderScript = "https://jsdelivr.net";
+            trackerInstance.params.faceMeshWasmLocation = "https://jsdelivr.net";
         }
 
-        // Initialize WebGazer using our pre-activated video stream
-        await webgazer.setRegression('ridge')
+        // Initialize WebGazer engine properties on the active instance context
+        await trackerInstance.setRegression('ridge')
             .setGazeListener((data, clock) => {
                 if (isCalibrated && data) {
                     gazePointer.style.left = `${data.x}px`;
@@ -67,9 +65,8 @@ async function initSystem() {
             .saveDataAcrossSessions(false)
             .begin();
 
-        // Hide WebGazer's default canvas overlays
-        webgazer.showVideoPreview(false)
-                 .showPredictionPoints(false);
+        trackerInstance.showVideoPreview(false)
+                       .showPredictionPoints(false);
 
         log("Gaze tracking active. Hardware synced.");
         statusText.innerText = "Hold your tablet or phone steady";
