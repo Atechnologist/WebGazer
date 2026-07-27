@@ -1,12 +1,12 @@
-<!DOCTYPE html>
+html<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Final Production Build</title>
+    <title>Mobile Gaze Tracker - Alternate Network Build</title>
     
-    <!-- Unified Browser-Ready MediaPipe Core Engine Build -->
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <!-- 1. Universal Browser Engine running on unpkg.com to bypass local network/CORS blocks -->
+    <script src="https://unpkg.com" crossorigin="anonymous"></script>
 
     <style>
         body, html {
@@ -88,30 +88,42 @@
     function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
     async function initSystem() {
-        // Enforce HTTPS security rules inside the log window panel
         if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
             log("Security Block: Mobile hardware streams require HTTPS connection.");
             statusText.innerText = "Deployment Error: Switch page to HTTPS.";
             return;
         }
 
-        // FIX: Target the exact global variable namespace exported by MediaPipe's UMD bundle
-        const mediaPipeVisionFactory = window.createMediaPipeVision;
-        if (!mediaPipeVisionFactory) {
-            log("Boot Error: Core library properties failed to compile onto window.");
-            return;
-        }
-
+        // 2. Clear variable assignments targeting either available browser build path handles
+        const targetModule = window.mp || window.MediaPipe || window.createMediaPipeVision;
+        
         try {
             log("Downloading neural face mesh files...");
-            
-            // Initialize and compile constructors using the bundle loader function factory
-            const mediaPipeVisionInstance = await mediaPipeVisionFactory();
-            const FilesetResolver = mediaPipeVisionInstance.FilesetResolver;
-            const FaceLandmarker = mediaPipeVisionInstance.FaceLandmarker;
 
+            let FilesetResolver, FaceLandmarker;
+
+            // Direct extraction fallback routing logic
+            if (targetModule && typeof targetModule === 'function') {
+                const compiledInstance = await targetModule();
+                FilesetResolver = compiledInstance.FilesetResolver;
+                FaceLandmarker = compiledInstance.FaceLandmarker;
+            } else if (window.imgstry || window.Xxx || typeof FaceLandmarker === 'undefined') {
+                // Read modern exports bundled on global scopes
+                FilesetResolver = window.FilesetResolver;
+                FaceLandmarker = window.FaceLandmarker;
+            }
+
+            // Fallback validation step checking if assignments extracted cleanly
+            if (!FilesetResolver || !FaceLandmarker) {
+                log("Retrying framework properties resolution binding loops...");
+                // Force map via dynamic variable mapping arrays if window was slow to unpack
+                FilesetResolver = FilesetResolver || window.FilesetResolver;
+                FaceLandmarker = FaceLandmarker || window.FaceLandmarker;
+            }
+
+            // Download the dynamic WebAssembly file containers from our reliable UNPKG mirror network
             const filesetResolver = await FilesetResolver.forVisionTasks(
-                "https://jsdelivr.net"
+                "https://unpkg.com"
             );
 
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
@@ -141,7 +153,7 @@
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup stalled. Check console logs.";
+            statusText.innerText = "Setup stalled. Check network connectivity mappings.";
             console.error(err);
         }
     }
@@ -155,9 +167,8 @@
                 const result = faceLandmarker.detectForVideo(videoElement, performance.now());
                 
                 if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0]; // Access the array index properly
+                    const landmarks = result.faceLandmarks[0]; // Isolate target tracking face indexes array
 
-                    // Extract tracking parameters out of MediaPipe landmarker matrices
                     const outer = landmarks[33];
                     const inner = landmarks[133];
                     const pupil = landmarks[468];
@@ -215,7 +226,6 @@
         calibrationStep++;
         showNextCalibrationDot();
     });
-
     function processGazeMapping(ex, ey) {
         const { tl, tr, bl, br } = eyeGrid;
 
