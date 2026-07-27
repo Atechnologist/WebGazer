@@ -29,18 +29,27 @@ jobs:
 
       - name: Download Local Core AI Engine Assets
         run: |
-          # 1. Create a secure local production script folder
           mkdir -p _site/assets/js
           
-          # 2. Download the exact required tracking framework engine files directly into your repository
-          curl -L "https://jsdelivr.net" -o _site/assets/js/face_mesh.js
-          curl -L "https://jsdelivr.net" -o _site/assets/js/face_mesh_solution_simd_wasm_bin.js
-          curl -L "https://jsdelivr.net" -o _site/assets/js/face_mesh_solution_wasm_bin.js
-          curl -L "https://jsdelivr.net" -o _site/assets/js/face_mesh.binarypb
+          echo "=== TRYING ROUTE 1: GOOGLE PRODUCTION SERVERS ==="
+          curl -L --connect-timeout 15 --retry 3 "https://googleapis.com" -o _site/assets/js/face_mesh.js || {
+            echo "Google Main script failed, switching to Route 2 (cdnjs)..."
+            curl -L "https://cloudflare.com" -o _site/assets/js/face_mesh.js
+          }
+          
+          # Pull the underlying mathematical binary packages and model weights directly from stable alternatives
+          curl -L --connect-timeout 15 --retry 3 "https://googleapis.com" -o _site/assets/js/face_mesh.binarypb || {
+            echo "Primary model fetch failed, trying alternate mirror..."
+            curl -L "https://unpkg.com" -o _site/assets/js/face_mesh.binarypb
+          }
+
+          # Fetch required system helpers directly from high-speed open-source caches
+          curl -L "https://unpkg.com" -o _site/assets/js/face_mesh_solution_simd_wasm_bin.js
+          curl -L "https://unpkg.com" -o _site/assets/js/face_mesh_solution_wasm_bin.js
 
       - name: Package Application UI
         run: |
-          # 3. Copy your local interface file right into the production folder setup
+          # Copy your main web interface file right into the isolated distribution folder
           cp index.html _site/
           
           echo "=== VERIFYING NATIVE ASSET INVENTORY ==="
