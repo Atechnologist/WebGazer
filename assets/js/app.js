@@ -5,7 +5,7 @@ const statusText = document.getElementById('status-text');
 const startBtn = document.getElementById('start-btn');
 const debugLog = document.getElementById('debug-console');
 
-let faceMeshModel = null;
+let faceLandmarker = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
@@ -26,88 +26,98 @@ function log(msg) { debugLog.innerText = "System Log: " + msg; }
 async function initSystem() {
     let checkAttempts = 0;
     
-    // FIX 1: Safely poll for the global variable properties attached inside the window context
-    while (typeof window.FaceMesh === 'undefined' || typeof window.Camera === 'undefined') {
+    // Wait until the unified Google Vision architecture package finishes registering
+    while (typeof FilesetResolver === 'undefined' || typeof FaceLandmarker === 'undefined') {
         checkAttempts++;
-        log(`Connecting to Face Mesh engine... (Attempt ${checkAttempts}/20)`);
+        log(`Connecting to AI Edge runtime... (Attempt ${checkAttempts}/20)`);
         if (checkAttempts > 20) {
-            log("Boot Error: MediaPipe modules failed to register. Check network connection.");
-            statusText.innerText = "Setup stalled. Files missing or blocked.";
+            log("Boot Error: Google Vision libraries failed to load.");
+            statusText.innerText = "Setup stalled. Check network proxy filters.";
             return;
         }
         await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     try {
-        log("Booting native Google FaceMesh pipeline layers...");
+        log("Downloading neural face mesh files...");
         
-        // Instantiate the object properties out of the window frame context directly
-        faceMeshModel = new window.FaceMesh({
-            locateFile: (file) => `https://jsdelivr.net{file}`
-        });
+        // Load the explicit asset resolver package from Google's verified cloud repo mirror
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+            "https://jsdelivr.net"
+        );
 
-        faceMeshModel.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true, // Loads high-accuracy pupil/iris landmarks
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-
-        faceMeshModel.onResults(onFaceMeshResults);
-
-        log("Requesting physical webcam streaming tokens...");
-        
-        // Establish the camera framework instance out of the window namespace mapping wrapper
-        const cameraInstance = new window.Camera(videoElement, {
-            onFrame: async () => {
-                await faceMeshModel.send({ image: videoElement });
+        // Instantiate the modern landmarker mapping configuration settings
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+                modelAssetPath: `https://googleapis.com`,
+                delegate: "GPU"
             },
-            width: 640,
-            height: 480
+            outputFaceBlendshapes: false,
+            outputFacialTransformationMatrixes: false,
+            runningMode: "VIDEO",
+            numFaces: 1
         });
 
-        await cameraInstance.start();
-        log("Webcam stream operational. AI pipeline verified.");
-        statusText.innerText = "Hold your tablet or phone steady";
-        startBtn.disabled = false;
+        log("Requesting physical webcam hardware permissions...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+            log("Webcam operational. AI pipeline tracking frame loops...");
+            statusText.innerText = "Hold your tablet or phone steady";
+            startBtn.disabled = false;
+            processVideoFrameLoop();
+        };
 
     } catch (err) {
         log("Boot Error: " + err.message);
-        // FIX 2: Clear up the security block notice text so you know exactly why hardware access failed
-        statusText.innerText = "Camera Access Blocked. Page MUST run over HTTPS protocol link.";
+        statusText.innerText = "Camera Access Blocked. Ensure page runs over HTTPS.";
         console.error(err);
     }
 }
 
-function onFaceMeshResults(results) {
-    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        log("Searching for eyes / face context...");
-        return;
-    }
+let lastVideoTime = -1;
+async function processVideoFrameLoop() {
+    if (videoElement.currentTime !== lastVideoTime) {
+        lastVideoTime = videoElement.currentTime;
+        
+        if (faceLandmarker && videoElement.readyState >= 2) {
+            const result = faceLandmarker.detectForVideo(videoElement, performance.now());
+            
+            if (result.faceLandmarks && result.faceLandmarks.length > 0) {
+                log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+                
+                const landmarks = result.faceLandmarks[0];
 
-    log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-    const landmarks = results.multiFaceLandmarks[0];
+                // Modern Google AI Edge Node Array Indexes mapping vectors:
+                // Node 33 = Left eye outer edge, Node 133 = Left eye inner edge, Node 468 = Left pupil center matrix
+                const outer = landmarks[33];
+                const inner = landmarks[133];
+                const pupil = landmarks[468];
 
-    // MediaPipe RefineLandmarks Index Map:
-    // 33 = Left Eye Outer Corner, 133 = Left Eye Inner Corner, 468 = Left Pupil Center
-    const outer = landmarks[33];
-    const inner = landmarks[133];
-    const pupil = landmarks[468];
+                if (outer && inner && pupil) {
+                    const eyeCenterX = (inner.x + outer.x) / 2;
+                    const eyeCenterY = (inner.y + outer.y) / 2;
+                    const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
 
-    if (outer && inner && pupil) {
-        const eyeCenterX = (inner.x + outer.x) / 2;
-        const eyeCenterY = (inner.y + outer.y) / 2;
-        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+                    currentFeatures = {
+                        x: (pupil.x - eyeCenterX) / eyeWidth,
+                        y: (pupil.y - eyeCenterY) / eyeWidth
+                    };
 
-        currentFeatures = {
-            x: (pupil.x - eyeCenterX) / eyeWidth,
-            y: (pupil.y - eyeCenterY) / eyeWidth
-        };
-
-        if (isCalibrated) {
-            processGazeMapping(currentFeatures.x, currentFeatures.y);
+                    if (isCalibrated) {
+                        processGazeMapping(currentFeatures.x, currentFeatures.y);
+                    }
+                }
+            } else {
+                log("Searching for eyes / face context...");
+            }
         }
     }
+    requestAnimationFrame(processVideoFrameLoop);
 }
 
 function startCalibration() {
