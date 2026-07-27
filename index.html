@@ -108,8 +108,9 @@
             const FilesetResolver = mediaPipeVisionInstance.FilesetResolver;
             const FaceLandmarker = mediaPipeVisionInstance.FaceLandmarker;
 
+            // Point directly to Google's absolute static binary bucket layer 
             const filesetResolver = await FilesetResolver.forVisionTasks(
-                "https://unpkg.com"
+            "https://jsdelivr.net"
             );
 
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
