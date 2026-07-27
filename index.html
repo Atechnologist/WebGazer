@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Pinned Engine</title>
+    <title>Mobile Gaze Tracker - Verified Engine</title>
     
-    <!-- FIX 1: Pin the browser bundle explicitly to stable version 0.10.8 -->
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -51,17 +48,21 @@
 </head>
 <body>
 
-    <div id="debug-console">System Log: Downloading libraries...</div>
+    <div id="debug-console">System Log: Initializing pipeline...</div>
     <video id="webcam" autoplay playsinline muted></video>
     <div id="calib-dot" class="calib-dot"></div>
     <div id="gaze-pointer"></div>
 
     <div id="ui-overlay">
-        <h2 id="status-text">Loading Face AI Models...</h2>
-        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+        <h2 id="status-text">Loading Google Vision Assets...</h2>
+        <button id="start-btn" id="start-btn-action" disabled>Start Calibration</button>
     </div>
 
-<script>
+<script type="module">
+    // 1. Direct Module Imports from Google's official jsDelivr CDN repository mirror
+    import vision from "https://jsdelivr.net";
+    const { FaceLandmarker, FilesetResolver } = vision;
+
     const videoElement = document.getElementById('webcam');
     const calibDot = document.getElementById('calib-dot');
     const gazePointer = document.getElementById('gaze-pointer');
@@ -88,33 +89,18 @@
     function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
     async function initSystem() {
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-            log("Security Block: Mobile hardware streams require HTTPS connection.");
-            statusText.innerText = "Deployment Error: Switch page to HTTPS.";
-            return;
-        }
-
-        const mediaPipeVisionFactory = window.createMediaPipeVision;
-        if (!mediaPipeVisionFactory) {
-            log("Boot Error: Core library properties failed to compile onto window.");
-            return;
-        }
-
         try {
-            log("Downloading neural face mesh files...");
+            log("Configuring deep Fileset WebAssembly engine mappings...");
             
-            const mediaPipeVisionInstance = await mediaPipeVisionFactory();
-            const FilesetResolver = mediaPipeVisionInstance.FilesetResolver;
-            const FaceLandmarker = mediaPipeVisionInstance.FaceLandmarker;
-
-            // FIX 2: Pin the runtime WebAssembly directory path directly to 0.10.8 to clear structural 404 blocks
+            // 2. Fetch runtime core dependencies directly from verified Google CDN buckets
             const filesetResolver = await FilesetResolver.forVisionTasks(
                 "https://jsdelivr.net"
             );
 
+            log("Downloading face landmarker model matrix tracking maps...");
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                 baseOptions: {
-                    modelAssetPath: "https://googleapis.com",
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
                     delegate: "GPU"
                 },
                 outputFaceBlendshapes: false,
@@ -123,7 +109,7 @@
                 numFaces: 1
             });
 
-            log("Requesting physical webcam access permissions...");
+            log("Requesting local device camera access...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -131,32 +117,35 @@
             
             videoElement.srcObject = stream;
             videoElement.onloadedmetadata = () => {
-                log("Camera pipeline active. Ready to calibrate.");
+                log("AI loop tracking active. Ready to calibrate.");
                 statusText.innerText = "Hold your device steady";
                 startBtn.disabled = false;
-                processVideoFrameLoop();
+                
+                // Mount frame processor track loops execution layer
+                processFramesLoop();
             };
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup stalled. Check console logs.";
+            statusText.innerText = "Setup blocked. Verify application runs over HTTPS.";
             console.error(err);
         }
     }
 
     let lastVideoTime = -1;
-    async function processVideoFrameLoop() {
+    async function processFramesLoop() {
         if (videoElement.currentTime !== lastVideoTime) {
             lastVideoTime = videoElement.currentTime;
             
             if (faceLandmarker && videoElement.readyState >= 2) {
+                // Execute standard synchronous analysis call targeting current context frame
                 const result = faceLandmarker.detectForVideo(videoElement, performance.now());
                 
                 if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0]; // Extract the array index properly
+                    const landmarks = result.faceLandmarks[0]; // Map the first active tracked face mesh element
 
-                    // MediaPipe Landmarker Indices: 
-                    // 33: Left outer corner, 133: Left inner corner, 468: Left pupil center
+                    // MediaPipe RefineLandmarks Target Metrics Coordinate Array Maps:
+                    // Landmark Node 33 = Left eye outer, 133 = Left eye inner, 468 = Left pupil center
                     const outer = landmarks[33];
                     const inner = landmarks[133];
                     const pupil = landmarks[468];
@@ -166,6 +155,7 @@
                         const eyeCenterY = (inner.y + outer.y) / 2;
                         const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
 
+                        // Isolate raw horizontal and vertical pupil position variations
                         currentFeatures = {
                             x: (pupil.x - eyeCenterX) / eyeWidth,
                             y: (pupil.y - eyeCenterY) / eyeWidth
@@ -178,7 +168,7 @@
                 }
             }
         }
-        requestAnimationFrame(processVideoFrameLoop);
+        requestAnimationFrame(processFramesLoop);
     }
 
     function startCalibration() {
@@ -198,7 +188,6 @@
             document.getElementById('ui-overlay').style.display = 'none';
             isCalibrated = true;
             gazePointer.style.display = 'block';
-            log("Gaze tracking active.");
         }
     }
 
@@ -225,7 +214,7 @@
         const v = Math.max(0, Math.min(1, ty));
 
         let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;
 
         smoothingBuffer.push({ x: targetX, y: targetY });
         if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();
@@ -237,11 +226,11 @@
         gazePointer.style.top = `${avgY}px`;
     }
 
-    window.startCalibration = startCalibration;
+    // Attach activation function triggers directly to the UI elements interface layer
+    startBtn.addEventListener('click', startCalibration);
 
-    window.onload = () => {
-        setTimeout(initSystem, 1000);
-    };
+    // Boot execution loop sequence
+    initSystem();
 </script>
 </body>
 </html>
