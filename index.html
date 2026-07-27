@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Stable Engine</title>
+    <title>Mobile Gaze Tracker - Fixed UMD Pipeline</title>
     
+    <!-- 1. Universal Browser-Ready MediaPipe Core Engine (Bypasses CORS module restrictions) -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -55,13 +58,10 @@
 
     <div id="ui-overlay">
         <h2 id="status-text">Loading Face AI Models...</h2>
-        <button id="start-btn" disabled>Start Calibration</button>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-<script type="module">
-    // Direct, native ES Module imports mapping across jsDelivr infrastructure definitions
-    import { FilesetResolver, FaceLandmarker } from "https://jsdelivr.net";
-
+<script>
     const videoElement = document.getElementById('webcam');
     const calibDot = document.getElementById('calib-dot');
     const gazePointer = document.getElementById('gaze-pointer');
@@ -88,18 +88,27 @@
     function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
     async function initSystem() {
+        // Safe verification check targeting the global browser workspace scope
+        const mediaPipeVision = window.Vision;
+        if (!mediaPipeVision) {
+            log("Boot Error: Core architecture engine missing from window namespace.");
+            return;
+        }
+
         try {
-            log("Downloading neural face mesh patterns...");
+            log("Downloading neural face mesh files...");
             
-            // Build the isolated WASM memory runtime scope space
+            // 2. Map global constructors cleanly out of the UMD package wrapper
+            const FilesetResolver = mediaPipeVision.FilesetResolver;
+            const FaceLandmarker = mediaPipeVision.FaceLandmarker;
+
             const filesetResolver = await FilesetResolver.forVisionTasks(
                 "https://jsdelivr.net"
             );
 
-            // Construct our native AI vision module tracker
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                 baseOptions: {
-                    modelAssetPath: `https://googleapis.com`,
+                    modelAssetPath: "https://googleapis.com",
                     delegate: "GPU"
                 },
                 outputFaceBlendshapes: false,
@@ -108,7 +117,7 @@
                 numFaces: 1
             });
 
-            log("Opening front camera feed...");
+            log("Requesting webcam access...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -116,7 +125,7 @@
             
             videoElement.srcObject = stream;
             videoElement.onloadedmetadata = () => {
-                log("Camera feed synced. Ready to calibrate.");
+                log("Camera pipeline active. Ready to calibrate.");
                 statusText.innerText = "Hold your device steady";
                 startBtn.disabled = false;
                 processVideoFrameLoop();
@@ -124,7 +133,7 @@
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup blocked. Verify page is running over HTTPS.";
+            statusText.innerText = "Setup blocked. Verify page runs over HTTPS.";
             console.error(err);
         }
     }
@@ -209,7 +218,7 @@
         const u = Math.max(0, Math.min(1, tx));
         const v = Math.max(0, Math.min(1, ty));
 
-        let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[0].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
+        let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
         let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
         smoothingBuffer.push({ x: targetX, y: targetY });
@@ -222,11 +231,12 @@
         gazePointer.style.top = `${avgY}px`;
     }
 
-    // Attach button function pointer configurations natively inside module context definitions
     window.startCalibration = startCalibration;
 
-    // Run system boot sequence
-    initSystem();
+    // Run initialization 1 second after script mounts
+    window.onload = () => {
+        setTimeout(initSystem, 1000);
+    };
 </script>
 </body>
 </html>
