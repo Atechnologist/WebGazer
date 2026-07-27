@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Production V2</title>
+    <title>Mobile Gaze Tracker - Same Origin Build</title>
     
-    <!-- 1. Cache-Busted CDNJS MediaPipe FaceMesh engine. Clears old unpkg.com trace errors immediately -->
-    <script src="https://cloudflare.com" crossorigin="anonymous"></script>
+    <!-- 1. Loaded from your OWN secure root domain. Stops CORS blocks from cloud networks permanently -->
+    <script src="assets/js/face_mesh.js"></script>
 
     <style>
         body, html {
@@ -94,30 +94,29 @@
             return;
         }
 
-        // Verify the cdnjs browser script file properties mounted correctly
         if (typeof window.FaceMesh === 'undefined') {
-            log("Boot Error: Core architecture missing. Cache is blocking CDNJS update.");
+            log("Boot Error: Core architecture missing from local directory map.");
             return;
         }
 
         try {
-            log("Downloading neural face mesh patterns...");
+            log("Downloading neural face mesh files...");
 
-            // 2. Instantiate from window context using the native cdnjs library mapping
+            // 2. Direct the file resolver to pull binaries right out of your local assets folder!
             faceMesh = new window.FaceMesh({
-                locateFile: (file) => `https://jsdelivr.net{file}`
+                locateFile: (file) => `assets/js/${file}`
             });
 
             faceMesh.setOptions({
                 maxNumFaces: 1,
-                refineLandmarks: true, // Required for exact iris and pupil coordinates
+                refineLandmarks: true, // Crucial iris/pupil matrix mapping
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
 
             faceMesh.onResults(onFaceMeshResults);
 
-            log("Requesting webcam access permissions...");
+            log("Requesting webcam access...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -151,11 +150,11 @@
             return;
         }
 
-        log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-        const landmarks = results.multiFaceLandmarks[0]; // Fetch first active index face data
+        log(isCalibrated ? "Gaze tracking active." : "Tracking active. Ready to calibrate.");
+        const landmarks = results.multiFaceLandmarks[0];
 
-        // High-accuracy facial anchor points mapping sequence coordinates:
-        // index 33 = Left eye outer edge, 133 = Left eye inner edge, 468 = Left pupil center mapping
+        // High-precision tracking index arrays mapping left eye details:
+        // 33: Left eye outer edge, 133: Left eye inner edge, 468: Left pupil center
         const outer = landmarks[33];
         const inner = landmarks[133];
         const pupil = landmarks[468];
