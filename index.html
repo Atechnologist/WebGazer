@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Fixed Production Build</title>
+    <title>Mobile Gaze Tracker - Production V2</title>
     
-    <!-- Stable Production-Ready MediaPipe Core Engine Scripts via cdnjs -->
+    <!-- 1. Cache-Busted CDNJS MediaPipe FaceMesh engine. Clears old unpkg.com trace errors immediately -->
     <script src="https://cloudflare.com" crossorigin="anonymous"></script>
 
     <style>
@@ -94,30 +94,30 @@
             return;
         }
 
-        // Verify the browser-ready library script loaded successfully
+        // Verify the cdnjs browser script file properties mounted correctly
         if (typeof window.FaceMesh === 'undefined') {
-            log("Boot Error: FaceMesh engine was blocked or failed to download from CDN.");
+            log("Boot Error: Core architecture missing. Cache is blocking CDNJS update.");
             return;
         }
 
         try {
-            log("Downloading neural face mesh files...");
+            log("Downloading neural face mesh patterns...");
 
-            // Initialize the stable FaceMesh constructor directly out of the window namespace
+            // 2. Instantiate from window context using the native cdnjs library mapping
             faceMesh = new window.FaceMesh({
                 locateFile: (file) => `https://jsdelivr.net{file}`
             });
 
             faceMesh.setOptions({
                 maxNumFaces: 1,
-                refineLandmarks: true, // Crucial configuration to enable high-accuracy iris/pupil tracking points
+                refineLandmarks: true, // Required for exact iris and pupil coordinates
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
 
             faceMesh.onResults(onFaceMeshResults);
 
-            log("Requesting webcam access...");
+            log("Requesting webcam access permissions...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -125,17 +125,15 @@
             
             videoElement.srcObject = stream;
             videoElement.onloadedmetadata = () => {
-                log("Camera active. Initializing engine loop...");
+                log("Camera pipeline active. Ready to calibrate.");
                 statusText.innerText = "Hold your device steady";
                 startBtn.disabled = false;
-                
-                // Establish automated frames parsing execution track directly on the stream
                 processFramesLoop();
             };
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup stalled. Ensure browser permissions are granted.";
+            statusText.innerText = "Setup stalled. Ensure browser access is allowed.";
             console.error(err);
         }
     }
@@ -153,11 +151,11 @@
             return;
         }
 
-        log(isCalibrated ? "Gaze tracking active." : "Tracking active. Ready to calibrate.");
-        const landmarks = results.multiFaceLandmarks[0];
+        log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+        const landmarks = results.multiFaceLandmarks[0]; // Fetch first active index face data
 
-        // MediaPipe RefineLandmarks Index Map:
-        // Index 33 = Left Eye Outer Corner, 133 = Left Eye Inner Corner, 468 = Left Pupil Center
+        // High-accuracy facial anchor points mapping sequence coordinates:
+        // index 33 = Left eye outer edge, 133 = Left eye inner edge, 468 = Left pupil center mapping
         const outer = landmarks[33];
         const inner = landmarks[133];
         const pupil = landmarks[468];
@@ -167,7 +165,6 @@
             const eyeCenterY = (inner.y + outer.y) / 2;
             const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
 
-            // Extract horizontal and vertical pupil position variations
             currentFeatures = {
                 x: (pupil.x - eyeCenterX) / eyeWidth,
                 y: (pupil.y - eyeCenterY) / eyeWidth
