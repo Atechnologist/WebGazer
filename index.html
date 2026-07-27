@@ -1,12 +1,12 @@
-html<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Alternate Network Build</title>
+    <title>Mobile Gaze Tracker - Fixed Production Build</title>
     
-    <!-- 1. Universal Browser Engine running on unpkg.com to bypass local network/CORS blocks -->
-    <script src="https://unpkg.com" crossorigin="anonymous"></script>
+    <!-- Stable Production-Ready MediaPipe Core Engine Scripts via cdnjs -->
+    <script src="https://cloudflare.com" crossorigin="anonymous"></script>
 
     <style>
         body, html {
@@ -69,7 +69,7 @@ html<!DOCTYPE html>
     const startBtn = document.getElementById('start-btn');
     const debugLog = document.getElementById('debug-console');
 
-    let faceLandmarker = null;
+    let faceMesh = null;
     let currentFeatures = null;
     let calibrationStep = 0;
     let isCalibrated = false;
@@ -94,50 +94,30 @@ html<!DOCTYPE html>
             return;
         }
 
-        // 2. Clear variable assignments targeting either available browser build path handles
-        const targetModule = window.mp || window.MediaPipe || window.createMediaPipeVision;
-        
+        // Verify the browser-ready library script loaded successfully
+        if (typeof window.FaceMesh === 'undefined') {
+            log("Boot Error: FaceMesh engine was blocked or failed to download from CDN.");
+            return;
+        }
+
         try {
             log("Downloading neural face mesh files...");
 
-            let FilesetResolver, FaceLandmarker;
-
-            // Direct extraction fallback routing logic
-            if (targetModule && typeof targetModule === 'function') {
-                const compiledInstance = await targetModule();
-                FilesetResolver = compiledInstance.FilesetResolver;
-                FaceLandmarker = compiledInstance.FaceLandmarker;
-            } else if (window.imgstry || window.Xxx || typeof FaceLandmarker === 'undefined') {
-                // Read modern exports bundled on global scopes
-                FilesetResolver = window.FilesetResolver;
-                FaceLandmarker = window.FaceLandmarker;
-            }
-
-            // Fallback validation step checking if assignments extracted cleanly
-            if (!FilesetResolver || !FaceLandmarker) {
-                log("Retrying framework properties resolution binding loops...");
-                // Force map via dynamic variable mapping arrays if window was slow to unpack
-                FilesetResolver = FilesetResolver || window.FilesetResolver;
-                FaceLandmarker = FaceLandmarker || window.FaceLandmarker;
-            }
-
-            // Download the dynamic WebAssembly file containers from our reliable UNPKG mirror network
-            const filesetResolver = await FilesetResolver.forVisionTasks(
-                "https://unpkg.com"
-            );
-
-            faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-                baseOptions: {
-                    modelAssetPath: "https://googleapis.com",
-                    delegate: "GPU"
-                },
-                outputFaceBlendshapes: false,
-                outputFacialTransformationMatrixes: false,
-                runningMode: "VIDEO",
-                numFaces: 1
+            // Initialize the stable FaceMesh constructor directly out of the window namespace
+            faceMesh = new window.FaceMesh({
+                locateFile: (file) => `https://jsdelivr.net{file}`
             });
 
-            log("Requesting physical webcam access permissions...");
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true, // Crucial configuration to enable high-accuracy iris/pupil tracking points
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            faceMesh.onResults(onFaceMeshResults);
+
+            log("Requesting webcam access...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -145,52 +125,58 @@ html<!DOCTYPE html>
             
             videoElement.srcObject = stream;
             videoElement.onloadedmetadata = () => {
-                log("Camera pipeline active. Ready to calibrate.");
+                log("Camera active. Initializing engine loop...");
                 statusText.innerText = "Hold your device steady";
                 startBtn.disabled = false;
-                processVideoFrameLoop();
+                
+                // Establish automated frames parsing execution track directly on the stream
+                processFramesLoop();
             };
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup stalled. Check network connectivity mappings.";
+            statusText.innerText = "Setup stalled. Ensure browser permissions are granted.";
             console.error(err);
         }
     }
 
-    let lastVideoTime = -1;
-    async function processVideoFrameLoop() {
-        if (videoElement.currentTime !== lastVideoTime) {
-            lastVideoTime = videoElement.currentTime;
-            
-            if (faceLandmarker && videoElement.readyState >= 2) {
-                const result = faceLandmarker.detectForVideo(videoElement, performance.now());
-                
-                if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0]; // Isolate target tracking face indexes array
+    async function processFramesLoop() {
+        if (videoElement.readyState >= 2) {
+            await faceMesh.send({ image: videoElement });
+        }
+        requestAnimationFrame(processFramesLoop);
+    }
 
-                    const outer = landmarks[33];
-                    const inner = landmarks[133];
-                    const pupil = landmarks[468];
+    function onFaceMeshResults(results) {
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+            log("Searching for eyes / face context...");
+            return;
+        }
 
-                    if (outer && inner && pupil) {
-                        const eyeCenterX = (inner.x + outer.x) / 2;
-                        const eyeCenterY = (inner.y + outer.y) / 2;
-                        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+        log(isCalibrated ? "Gaze tracking active." : "Tracking active. Ready to calibrate.");
+        const landmarks = results.multiFaceLandmarks[0];
 
-                        currentFeatures = {
-                            x: (pupil.x - eyeCenterX) / eyeWidth,
-                            y: (pupil.y - eyeCenterY) / eyeWidth
-                        };
+        // MediaPipe RefineLandmarks Index Map:
+        // Index 33 = Left Eye Outer Corner, 133 = Left Eye Inner Corner, 468 = Left Pupil Center
+        const outer = landmarks[33];
+        const inner = landmarks[133];
+        const pupil = landmarks[468];
 
-                        if (isCalibrated) {
-                            processGazeMapping(currentFeatures.x, currentFeatures.y);
-                        }
-                    }
-                }
+        if (outer && inner && pupil) {
+            const eyeCenterX = (inner.x + outer.x) / 2;
+            const eyeCenterY = (inner.y + outer.y) / 2;
+            const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+
+            // Extract horizontal and vertical pupil position variations
+            currentFeatures = {
+                x: (pupil.x - eyeCenterX) / eyeWidth,
+                y: (pupil.y - eyeCenterY) / eyeWidth
+            };
+
+            if (isCalibrated) {
+                processGazeMapping(currentFeatures.x, currentFeatures.y);
             }
         }
-        requestAnimationFrame(processVideoFrameLoop);
     }
 
     function startCalibration() {
@@ -210,7 +196,6 @@ html<!DOCTYPE html>
             document.getElementById('ui-overlay').style.display = 'none';
             isCalibrated = true;
             gazePointer.style.display = 'block';
-            log("Gaze tracking active.");
         }
     }
 
@@ -226,6 +211,7 @@ html<!DOCTYPE html>
         calibrationStep++;
         showNextCalibrationDot();
     });
+
     function processGazeMapping(ex, ey) {
         const { tl, tr, bl, br } = eyeGrid;
 
@@ -250,7 +236,6 @@ html<!DOCTYPE html>
 
     window.startCalibration = startCalibration;
 
-    // Run initialization 1 second after script mounts
     window.onload = () => {
         setTimeout(initSystem, 1000);
     };
