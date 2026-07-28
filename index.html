@@ -208,6 +208,213 @@
     const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
     window.addEventListener(triggerEvent, (e) => {
         if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Gaze Tracker - Final Production Build</title>
+    
+    <!-- 1. Consolidated Pure JavaScript TensorFlow.js Bundle Engines -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    
+    <!-- 2. Modern Native Face Detection Engine (Bypasses all WASM and model shard routing bugs) -->
+    <script src="https://jsdelivr.net"></script>
+
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #111; font-family: sans-serif;
+        }
+        #webcam {
+            position: absolute; width: 90px; height: 120px;
+            bottom: 10px; right: 10px; border-radius: 8px;
+            transform: scaleX(-1); border: 2px solid #333; z-index: 10;
+            object-fit: cover;
+        }
+        .calib-dot {
+            position: absolute; width: 40px; height: 40px;
+            background-color: #ff3366; border-radius: 50%;
+            transform: translate(-50%, -50%); display: none; z-index: 20;
+            box-shadow: 0 0 15px #ff3366;
+        }
+        #gaze-pointer {
+            position: absolute; width: 22px; height: 22px;
+            background-color: #00ffcc; border-radius: 50%;
+            transform: translate(-50%, -50%); display: none; z-index: 30;
+            box-shadow: 0 0 10px #00ffcc; pointer-events: none;
+        }
+        #ui-overlay {
+            position: absolute; top: 45%; left: 50%;
+            transform: translate(-50%, -50%); text-align: center;
+            color: white; z-index: 15; width: 80%;
+        }
+        #debug-console {
+            position: absolute; top: 10px; left: 10px;
+            color: #00ffcc; font-family: monospace; font-size: 11px;
+            z-index: 40; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 4px;
+            max-width: 80%; word-break: break-all;
+        }
+        button {
+            padding: 15px 30px; font-size: 16px; font-weight: bold;
+            background-color: #00ffcc; border: none; border-radius: 6px; cursor: pointer;
+        }
+        button:disabled { background-color: #333; color: #666; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="debug-console">System Log: Downloading core engine structures...</div>
+    <video id="webcam" autoplay playsinline muted></video>
+    <div id="calib-dot" class="calib-dot"></div>
+    <div id="gaze-pointer"></div>
+
+    <div id="ui-overlay">
+        <h2 id="status-text">Loading Neural Web Models...</h2>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+    </div>
+
+<script>
+    const videoElement = document.getElementById('webcam');
+    const calibDot = document.getElementById('calib-dot');
+    const gazePointer = document.getElementById('gaze-pointer');
+    const statusText = document.getElementById('status-text');
+    const startBtn = document.getElementById('start-btn');
+    const debugLog = document.getElementById('debug-console');
+
+    let detector = null;
+    let currentFeatures = null;
+    let calibrationStep = 0;
+    let isCalibrated = false;
+
+    const screenTargets = [
+        { x: 40, y: 40 },
+        { x: window.innerWidth - 40, y: 40 },
+        { x: 40, y: window.innerHeight - 40 },
+        { x: window.innerWidth - 40, y: window.innerHeight - 40 }
+    ];
+
+    let eyeGrid = { tl: null, tr: null, bl: null, br: null };
+    const smoothingBuffer = [];
+    const SMOOTH_FRAMES = 5;
+
+    function log(msg) { debugLog.innerText = "System Log: " + msg; }
+
+    async function initSystem() {
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            log("Security Block: Camera streams require an HTTPS secure connection.");
+            statusText.innerText = "Deployment Error: Switch page to HTTPS.";
+            return;
+        }
+
+        // Verify if package loads fully on global browser scope parameters
+        if (typeof tf === 'undefined' || typeof faceDetection === 'undefined') {
+            log("Boot Error: Core browser scripts were blocked or timed out.");
+            return;
+        }
+
+        try {
+            log("Initializing graphics acceleration engine...");
+            await tf.setBackend('webgl');
+            await tf.ready();
+            log(`Active Hardware Backend: ${tf.getBackend()}`);
+
+            log("Downloading target model architecture...");
+            // Load MediaPipe Face Mesh model directly mapped into memory scope without shard paths
+            const model = faceDetection.SupportedModels.MediaPipeFaceMesh;
+            detector = await faceDetection.createDetector(model, {
+                runtime: 'tfjs',
+                refineLandmarks: true, // Forces precise extraction of iris and pupils
+                maxFaces: 1
+            });
+
+            log("Requesting frontend webcam video tokens...");
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            });
+            
+            videoElement.srcObject = stream;
+            videoElement.onloadedmetadata = () => {
+                log("AI processing framework live. Ready to calibrate.");
+                statusText.innerText = "Hold your device steady";
+                startBtn.disabled = false;
+                processFramesLoop();
+            };
+
+        } catch (err) {
+            log("Boot Error: " + err.message);
+            statusText.innerText = "Setup blocked. Check device hardware settings.";
+            console.error(err);
+        }
+    }
+
+    async function processFramesLoop() {
+        if (detector && videoElement.readyState >= 2) {
+            try {
+                // Execute calculation call targeting current context frame
+                const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+
+                if (faces.length > 0) {
+                    log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+                    
+                    const keypoints = faces[0].keypoints;
+
+                    // Modern tracking indexes mapping pupil and eye landmarks:
+                    // Keypoint 33 = Left eye outer edge, 133 = Left eye inner edge, 468 = Left pupil center matrix
+                    const outer = keypoints[33];
+                    const inner = keypoints[133];
+                    const pupil = keypoints[468];
+
+                    if (outer && inner && pupil) {
+                        const eyeCenterX = (inner.x + outer.x) / 2;
+                        const eyeCenterY = (inner.y + outer.y) / 2;
+                        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+
+                        // Isolate pupil offset deviations relative to head positions
+                        currentFeatures = {
+                            x: (pupil.x - eyeCenterX) / eyeWidth,
+                            y: (pupil.y - eyeCenterY) / eyeWidth
+                        };
+
+                        if (isCalibrated) {
+                            processGazeMapping(currentFeatures.x, currentFeatures.y);
+                        }
+                    }
+                } else {
+                    log("Searching for eyes / face context...");
+                }
+            } catch (e) {
+                // Bypass frame skip cycles gracefully
+            }
+        }
+        requestAnimationFrame(processFramesLoop);
+    }
+
+    function startCalibration() {
+        startBtn.style.display = 'none';
+        statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
+        calibrationStep = 0;
+        showNextCalibrationDot();
+    }
+
+    function showNextCalibrationDot() {
+        if (calibrationStep < 4) {
+            calibDot.style.display = 'block';
+            calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
+            calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
+        } else {
+            calibDot.style.display = 'none';
+            document.getElementById('ui-overlay').style.display = 'none';
+            isCalibrated = true;
+            gazePointer.style.display = 'block';
+        }
+    }
+
+    const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
+    window.addEventListener(triggerEvent, (e) => {
+        if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
         if (e.target.id === 'start-btn') return;
         if (!currentFeatures) return; 
 
@@ -227,8 +434,12 @@
         const u = Math.max(0, Math.min(1, tx));
         const v = Math.max(0, Math.min(1, ty));
 
-        let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;smoothingBuffer.push({ x: targetX, y: targetY });if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;gazePointer.style.left = ${avgX}px;gazePointer.style.top = ${avgY}px;}window.startCalibration = startCalibration;window.onload = () => {setTimeout(initSystem, 1000);};
+        let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets.x;
+        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets.y;
+
+        smoothingBuffer.push({ x: targetX, y: targetY });
+        if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();
+        const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;gazePointer.style.left = ${avgX}px;gazePointer.style.top = ${avgY}px;}window.startCalibration = startCalibration;window.onload = () => {setTimeout(initSystem, 1000);};
     </script>
 </body>
 </html>
