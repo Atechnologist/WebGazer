@@ -148,40 +148,50 @@
     }
 
     async function processFramesLoop() {
-        if (detector && videoElement.readyState >= 2) {
-            try {
-                // Execute calculation call targeting current context frame
-                const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+    if (detector && videoElement.readyState >= 2) {
+        try {
+            // Execute calculation call targeting current context frame
+            const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
 
-                if (faces.length > 0) {
-                    log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+            if (faces.length > 0) {
+                log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
 
-                    const keypoints = faces[0].keypoints;
+                const keypoints = faces[0].keypoints;
 
-                    /// Map values matching the modern TensorFlow Object structure
-const outer = keypoints.find(k => k.name === 'leftEye' || k.name === 'leftEyeOuterCorner' || k.name === '33');
-const inner = keypoints.find(k => k.name === 'leftEyeInnerCorner' || k.name === '133');
-const pupil = keypoints.find(k => k.name === 'leftIris' || k.name === 'leftPupil' || k.name === '468');
+                // Map values matching the modern TensorFlow Object structure
+                const outer = keypoints.find(k => k.name === 'leftEye' || k.name === 'leftEyeOuterCorner' || k.name === '33');
+                const inner = keypoints.find(k => k.name === 'leftEyeInnerCorner' || k.name === '133');
+                const pupil = keypoints.find(k => k.name === 'leftIris' || k.name === 'leftPupil' || k.name === '468');
 
-// Fallback: If named lookups fail on older bundle iterations, safely snap to indices
-const leftOuterPoint = outer || keypoints[33];
-const leftInnerPoint = inner || keypoints[133];
-const leftPupilPoint = pupil || keypoints[468];
+                // Fallback: If named lookups fail on older bundle iterations, safely snap to indices
+                const leftOuterPoint = outer || keypoints[33];
+                const leftInnerPoint = inner || keypoints[133];
+                const leftPupilPoint = pupil || keypoints[468];
 
-if (leftOuterPoint && leftInnerPoint && leftPupilPoint) {
-    const eyeCenterX = (leftInnerPoint.x + leftOuterPoint.x) / 2;
-    const eyeCenterY = (leftInnerPoint.y + leftOuterPoint.y) / 2;
-    const eyeWidth = Math.hypot(leftOuterPoint.x - leftInnerPoint.x, leftOuterPoint.y - leftInnerPoint.y);
+                if (leftOuterPoint && leftInnerPoint && leftPupilPoint) {
+                    const eyeCenterX = (leftInnerPoint.x + leftOuterPoint.x) / 2;
+                    const eyeCenterY = (leftInnerPoint.y + leftOuterPoint.y) / 2;
+                    const eyeWidth = Math.hypot(leftOuterPoint.x - leftInnerPoint.x, leftOuterPoint.y - leftInnerPoint.y);
 
-    currentFeatures = {
-        x: (leftPupilPoint.x - eyeCenterX) / eyeWidth,
-        y: (leftPupilPoint.y - eyeCenterY) / eyeWidth
-    };
+                    currentFeatures = {
+                        x: (leftPupilPoint.x - eyeCenterX) / eyeWidth,
+                        y: (leftPupilPoint.y - eyeCenterY) / eyeWidth
+                    };
 
-    if (isCalibrated) {
-        processGazeMapping(currentFeatures.x, currentFeatures.y);
+                    if (isCalibrated) {
+                        processGazeMapping(currentFeatures.x, currentFeatures.y);
+                    }
+                }
+            } else {
+                log("Searching for eyes / face context... (No faces in frame)");
+            }
+        } catch (e) {
+            log("Frame Error: " + e.message);
+        }
     }
+    requestAnimationFrame(processFramesLoop);
 }
+
     
 
     function startCalibration() {
