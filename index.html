@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Consolidated</title>
+    <title>Mobile Gaze Tracker - Fixed API</title>
     
     <!-- Natively compiled asset built directly by your GitHub workflow action runner -->
     <script src="dist/webgazer.js" async></script>
@@ -95,17 +95,24 @@ async function initSystem() {
 
     try {
         log("Configuring background tracking parameters...");
-        await webgazer.setRegression('ridge')
-            .setGazeListener((data) => {
-                if (isCalibrated && data) {
-                    gazePointer.style.left = `${data.x}px`;
-                    gazePointer.style.top = `${data.y}px`;
-                }
-            })
-            .saveDataAcrossSessions(false)
-            .begin();
+        
+        // FIX: Broke method chains into separate sequential configurations
+        webgazer.setRegression('ridge');
+        
+        webgazer.setGazeListener((data) => {
+            if (isCalibrated && data) {
+                gazePointer.style.left = `${data.x}px`;
+                gazePointer.style.top = `${data.y}px`;
+            }
+        });
 
-        webgazer.showVideoPreview(true); // Keep on to let WebGazer inject canvas accurately
+        webgazer.saveDataAcrossSessions(false);
+
+        // Run async initialization starter
+        await webgazer.begin();
+
+        // Control visual canvas overlays safely
+        webgazer.showVideoPreview(true); 
         webgazer.showPredictionPoints(false);
 
         log("WebGazer engine active. Camera streaming synced.");
