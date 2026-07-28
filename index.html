@@ -158,35 +158,30 @@
 
                     const keypoints = faces[0].keypoints;
 
-                    // Modern tracking indexes mapping pupil and eye landmarks:
-                    // Keypoint 33 = Left eye outer edge, 133 = Left eye inner edge, 468 = Left pupil center matrix
-                    const outer = keypoints[33];
-                    const inner = keypoints[133];
-                    const pupil = keypoints[468];
+                    /// Map values matching the modern TensorFlow Object structure
+const outer = keypoints.find(k => k.name === 'leftEye' || k.name === 'leftEyeOuterCorner' || k.name === '33');
+const inner = keypoints.find(k => k.name === 'leftEyeInnerCorner' || k.name === '133');
+const pupil = keypoints.find(k => k.name === 'leftIris' || k.name === 'leftPupil' || k.name === '468');
 
-                    if (outer && inner && pupil) {
-                        const eyeCenterX = (inner.x + outer.x) / 2;
-                        const eyeCenterY = (inner.y + outer.y) / 2;
-                        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+// Fallback: If named lookups fail on older bundle iterations, safely snap to indices
+const leftOuterPoint = outer || keypoints[33];
+const leftInnerPoint = inner || keypoints[133];
+const leftPupilPoint = pupil || keypoints[468];
 
-                        // Isolate pupil offset deviations relative to head positions
-                        currentFeatures = {
-                            x: (pupil.x - eyeCenterX) / eyeWidth,
-                            y: (pupil.y - eyeCenterY) / eyeWidth
-                        };
+if (leftOuterPoint && leftInnerPoint && leftPupilPoint) {
+    const eyeCenterX = (leftInnerPoint.x + leftOuterPoint.x) / 2;
+    const eyeCenterY = (leftInnerPoint.y + leftOuterPoint.y) / 2;
+    const eyeWidth = Math.hypot(leftOuterPoint.x - leftInnerPoint.x, leftOuterPoint.y - leftInnerPoint.y);
 
-                        if (isCalibrated) {
-                            processGazeMapping(currentFeatures.x, currentFeatures.y);
-                        }
-                    }
-                } else {
-                    log("Searching for eyes / face context...");
-                }
-            } catch (e) {
-                // Bypass frame skip cycles gracefully
-            }
-        }
-        requestAnimationFrame(processFramesLoop);
+    currentFeatures = {
+        x: (leftPupilPoint.x - eyeCenterX) / eyeWidth,
+        y: (leftPupilPoint.y - eyeCenterY) / eyeWidth
+    };
+
+    if (isCalibrated) {
+        processGazeMapping(currentFeatures.x, currentFeatures.y);
+    }
+}
     }
 
     function startCalibration() {
