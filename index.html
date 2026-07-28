@@ -149,21 +149,25 @@
 
     async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
+        let videoTensor = null;
         try {
-            // Execute calculation call targeting current context frame
-            const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+            // 1. FIX: Wrap the raw HTML video element into a math Tensor pixel matrix object wrapper!
+            videoTensor = tf.browser.fromPixels(videoElement);
 
-            if (faces.length > 0) {
+            // 2. Feed the structured image data container straight into the network detector
+            const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
+
+            if (faces && faces.length > 0) {
                 log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
 
                 const keypoints = faces[0].keypoints;
 
-                // Map values matching the modern TensorFlow Object structure
+                // Extract landmarks matching the modern labeled dictionary schema
                 const outer = keypoints.find(k => k.name === 'leftEye' || k.name === 'leftEyeOuterCorner' || k.name === '33');
                 const inner = keypoints.find(k => k.name === 'leftEyeInnerCorner' || k.name === '133');
                 const pupil = keypoints.find(k => k.name === 'leftIris' || k.name === 'leftPupil' || k.name === '468');
 
-                // Fallback: If named lookups fail on older bundle iterations, safely snap to indices
+                // Structural fallback array indicators configuration properties mappings
                 const leftOuterPoint = outer || keypoints[33];
                 const leftInnerPoint = inner || keypoints[133];
                 const leftPupilPoint = pupil || keypoints[468];
@@ -187,10 +191,18 @@
             }
         } catch (e) {
             log("Frame Error: " + e.message);
+            console.error(e);
+        } finally {
+            // 3. CRITICAL: Wipe the current tensor memory block out of GPU registers instantly
+            // This prevents your smartphone or web browser tab from lagging or crashing!
+            if (videoTensor) {
+                videoTensor.dispose();
+            }
         }
     }
     requestAnimationFrame(processFramesLoop);
 }
+
 
     
 
