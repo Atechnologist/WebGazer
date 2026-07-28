@@ -139,9 +139,13 @@
 
     async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
+        let videoTensor = null;
         try {
-            // Pass the raw videoElement directly as required by faceLandmarksDetection
-            const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+            // 1. Manually convert the camera frames into an accelerated image tensor object
+            videoTensor = tf.browser.fromPixels(videoElement);
+
+            // 2. Pass the generated tensor directly to the estimation engine
+            const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
 
             if (faces && faces.length > 0) {
                 log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
@@ -180,6 +184,12 @@
             }
         } catch (e) {
             log("Frame Error: " + e.message);
+        } finally {
+            // 3. CRITICAL MEMORY CLEANUP: Flush the tensor out of the GPU registers immediately
+            // This stops the browser loop from freezing up or throwing allocation errors!
+            if (videoTensor) {
+                videoTensor.dispose();
+            }
         }
     }
     requestAnimationFrame(processFramesLoop);
