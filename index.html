@@ -138,34 +138,42 @@
     }
 
     async function processFramesLoop() {
-        if (detector && videoElement.readyState >= 2) {
-            try {
-                const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
-                if (faces && faces.length > 0) {
-                    log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-                    const keypoints = faces[0].keypoints;
-                    // MediaPipe FaceMesh indices: 33/133 = left eye outer/inner corner, 468 = left pupil center (requires refineLandmarks)
-                    const outer = keypoints[33];
-                    const inner = keypoints[133];
-                    const pupil = keypoints[468];
-                    if (outer && inner && pupil) {
-                        const eyeCenterX = (inner.x + outer.x) / 2;
-                        const eyeCenterY = (inner.y + outer.y) / 2;
-                        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
-                        let calculatedX = (pupil.x - eyeCenterX) / eyeWidth;
-                        if (invertX) { calculatedX = -calculatedX; }
-                        currentFeatures = { x: calculatedX, y: (pupil.y - eyeCenterY) / eyeWidth };
-                        if (isCalibrated) { processGazeMapping(currentFeatures.x, currentFeatures.y); }
-                    }
-                } else {
-                    log("Searching for eyes / face context... (No faces in frame)");
+    if (detector && videoElement.readyState >= 2) {
+        try {
+            // FIX: Wrap the videoElement inside the expected inputs structure configuration object
+            const faces = await detector.estimateFaces({
+                input: videoElement,
+                returnTensors: false,
+                flipHorizontal: false
+            });
+
+            if (faces && faces.length > 0) {
+                log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+                const keypoints = faces[0].keypoints;
+                
+                // MediaPipe FaceMesh indices: 33/133 = left eye outer/inner corner, 468 = left pupil center
+                const outer = keypoints[33];
+                const inner = keypoints[133];
+                const pupil = keypoints[468];
+                
+                if (outer && inner && pupil) {
+                    const eyeCenterX = (inner.x + outer.x) / 2;
+                    const eyeCenterY = (inner.y + outer.y) / 2;
+                    const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+                    let calculatedX = (pupil.x - eyeCenterX) / eyeWidth;
+                    if (invertX) { calculatedX = -calculatedX; }
+                    currentFeatures = { x: calculatedX, y: (pupil.y - eyeCenterY) / eyeWidth };
+                    if (isCalibrated) { processGazeMapping(currentFeatures.x, currentFeatures.y); }
                 }
-            } catch (e) {
-                log("Frame Error: " + e.message);
+            } else {
+                log("Searching for eyes / face context... (No faces in frame)");
             }
+        } catch (e) {
+            log("Frame Error: " + e.message);
         }
-        requestAnimationFrame(processFramesLoop);
     }
+    requestAnimationFrame(processFramesLoop);
+}
 
     function startCalibration() {
         startBtn.style.display = 'none';
