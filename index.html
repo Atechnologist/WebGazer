@@ -230,5 +230,11 @@
 
         smoothingBuffer.push({ x: targetX, y: targetY });
         if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();
+        const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;gazePointer.style.left = ${avgX}px;gazePointer.style.top = ${avgY}px;}window.startCalibration = startCalibration;
+    // Trigger initialisation 1 second after script mounts on window page loadwindow.onload = () => {setTimeout(initSystem, 1000);};
+    </script>
+</body>
+</html>
+    
 
     
