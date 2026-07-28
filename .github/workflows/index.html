@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Gaze Tracker - Heatmap & Settings</title>
+    
+    <!-- Consolidated Pure JavaScript TensorFlow.js Bundle Engines -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <!-- Modern Native Face Detection Engine -->
+    <script src="https://jsdelivr.net"></script>
+
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #111; font-family: sans-serif;
+        }
+        #webcam {
+            position: absolute; width: 90px; height: 120px;
+            bottom: 10px; right: 10px; border-radius: 8px;
+            transform: scaleX(-1); border: 2px solid #333; z-index: 10;
+            object-fit: cover;
+        }
+        .calib-dot {
+            position: absolute; width: 40px; height: 40px;
+            background-color: #ff3366; border-radius: 50%;
+            transform: translate(-50%, -50%); display: none; z-index: 20;
+            box-shadow: 0 0 15px #ff3366;
+        }
+        #gaze-pointer {
+            position: absolute; width: 22px; height: 22px;
+            background-color: #00ffcc; border-radius: 50%;
+            transform: translate(-50%, -50%); display: none; z-index: 30;
+            box-shadow: 0 0 10px #00ffcc; pointer-events: none;
+        }
+        #heatmap-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5; pointer-events: none; opacity: 0.6;
+        }
+        #ui-overlay {
+            position: absolute; top: 45%; left: 50%;
+            transform: translate(-50%, -50%); text-align: center;
+            color: white; z-index: 15; width: 80%;
+        }
+        #debug-console {
+            position: absolute; top: 10px; left: 10px;
+            color: #00ffcc; font-family: monospace; font-size: 11px;
+            z-index: 40; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 4px;
+            max-width: 60%; word-break: break-all;
+        }
+        button {
+            padding: 12px 24px; font-size: 14px; font-weight: bold;
+            background-color: #00ffcc; border: none; border-radius: 6px; cursor: pointer;
+            color: #111;
+        }
+        button:disabled { background-color: #333; color: #666; cursor: not-allowed; }
+        
+        /* New Settings Panel Styling */
+        #settings-btn {
+            position: absolute; top: 10px; right: 10px; z-index: 45;
+            background-color: #333; color: #fff; border: 1px solid #555;
+            padding: 8px 12px; font-size: 11px; border-radius: 4px;
+        }
+        #settings-panel {
+            position: absolute; top: 50px; right: 10px; z-index: 45;
+            background: rgba(0,0,0,0.95); border: 1px solid #333;
+            padding: 15px; border-radius: 6px; color: #fff; font-size: 12px;
+            width: 220px; display: none;
+        }
+        .control-group { margin-bottom: 12px; }
+        .control-group label { display: block; margin-bottom: 4px; color: #00ffcc; }
+        .control-group input[type="range"] { width: 100%; }
+        .control-group span { float: right; font-family: monospace; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="debug-console">System Log: Downloading core engine structures...</div>
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="heatmap-canvas"></canvas>
+    <div id="calib-dot" class="calib-dot"></div>
+    <div id="gaze-pointer"></div>
+
+    <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
+    <div id="settings-panel">
+        <div class="control-group">
+            <label>Smoothing (Jitter Fix)</label>
+            <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()">
+            <span id="smooth-val">6 frames</span>
+        </div>
+        <div class="control-group">
+            <label>X-Axis Inversion</label>
+            <input type="checkbox" id="invert-x-check" onchange="updateSettings()"> Invert Horizontal Map
+        </div>
+        <div class="control-group">
+            <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white;">Clear Heatmap</button>
+        </div>
+    </div>
+
+    <div id="ui-overlay">
+        <h2 id="status-text">Loading Neural Web Models...</h2>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+    </div>
+
+<script>
+    const videoElement = document.getElementById('webcam');
+    const calibDot = document.getElementById('calib-dot');
+    const gazePointer = document.getElementById('gaze-pointer');
+    const statusText = document.getElementById('status-text');
+    const startBtn = document.getElementById('start-btn');
+    const debugLog = document.getElementById('debug-console');
+    const heatmapCanvas = document.getElementById('heatmap-canvas');
+    const heatmapCtx = heatmapCanvas.getContext('2d');
+
+    let detector = null;
+    let currentFeatures = null;
+    let calibrationStep = 0;
+    let isCalibrated = false;
+
+    // Runtime variables modifiable via the new UI panel
+    let smoothFrames = 6;
+    let invertX = false;
+    let heatmapData = []; // Storage matrix array for fixation logging maps
+
+    const screenTargets = [
+        { x: 40, y: 40 },
+        { x: window.innerWidth - 40, y: 40 },
+        { x: 40, y: window.innerHeight - 40 },
+        { x: window.innerWidth - 40, y: window.innerHeight - 40 }
+    ];
+
+    let eyeGrid = { tl: null, tr: null, bl: null, br: null };
+    const smoothingBuffer = [];
+
+    function log(msg) { debugLog.innerText = "System Log: " + msg; }
+
+    function toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function updateSettings() {
+        smoothFrames = parseInt(document.getElementById('smooth-range').value);
+        document.getElementById('smooth-val').innerText = smoothFrames + " frames";
+        invertX = document.getElementById('invert-x-check').checked;
+    }
+
+    function clearHeatmap() {
+        heatmapData = [];
+        heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
+    }
+
+    // Set dimensions for full canvas overlay matching window metrics bounds
+    function resizeCanvas() {
+        heatmapCanvas.width = window.innerWidth;
+        heatmapCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    async function initSystem() {
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            log("Security Block: Camera streams require an HTTPS secure connection.");
+            statusText.innerText = "Deployment Error: Switch page to HTTPS.";
+            return;
+        }
+
+        if (typeof tf === 'undefined' || typeof faceDetection === 'undefined') {
+            log("Boot Error: Core browser scripts were blocked or timed out.");
+            return;
+        }
+
+        try {
+            log("Initializing graphics acceleration engine...");
+            await tf.setBackend('webgl');
+            await tf.ready();
+
+            log("Downloading target model architecture...");
+            const model = faceDetection.SupportedModels.MediaPipeFaceMesh;
+            detector = await faceDetection.createDetector(model, {
+                runtime: 'tfjs',
+                refineLandmarks: true,
+                maxFaces: 1
+            });
+
+            log("Requesting frontend webcam video tokens...");
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: false
+            });
+            
+            videoElement.srcObject = stream;
+            videoElement.onloadedmetadata = () => {
+                log("AI processing framework live. Ready to calibrate.");
+                statusText.innerText = "Hold your device steady";
+                startBtn.disabled = false;
+                processFramesLoop();
+            };
+
+        } catch (err) {
+            log("Boot Error: " + err.message);
+            statusText.innerText = "Setup blocked. Check device hardware settings.";
+            console.error(err);
+        }
+    }
+
+    async function processFramesLoop() {
+        if (detector && videoElement.readyState >= 2) {
+            let videoTensor = null;
+            try {
+                videoTensor = tf.browser.fromPixels(videoElement);
+                const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
+
+                if (faces && faces.length > 0) {
+                    log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+
+                    const keypoints = faces[0].keypoints;
+
+                    const outer = keypoints.find(k => k.name === 'leftEyeOuterCorner' || k.name === 'leftEye' || k.name === '33');
+                    const inner = keypoints.find(k => k.name === 'leftEyeInnerCorner' || k.name === '133');
+                    const pupil = keypoints.find(k => k.name === 'leftIris' || k.name === 'leftPupil' || k.name === '468');
+
+                    const leftOuterPoint = outer || keypoints[33];
+                    const leftInnerPoint = inner || keypoints[133];
+                    const leftPupilPoint = pupil || keypoints[468];
+
+                    if (leftOuterPoint && leftInnerPoint && leftPupilPoint) {
+                        const eyeCenterX = (leftInnerPoint.x + leftOuterPoint.x) / 2;
+                        const eyeCenterY = (leftInnerPoint.y + leftOuterPoint.y) / 2;const eyeWidth = Math.hypot(leftOuterPoint.x - leftInnerPoint.x, leftOuterPoint.y - leftInnerPoint.y);let calculatedX = (leftPupilPoint.x - eyeCenterX) / eyeWidth;// Apply horizontal inversion logic filter switch based on settings configurationif (invertX) {calculatedX = -calculatedX;}currentFeatures = {x: calculatedX,y: (leftPupilPoint.y - eyeCenterY) / eyeWidth};if (isCalibrated) {processGazeMapping(currentFeatures.x, currentFeatures.y);}}} else {log("Searching for eyes / face context... (No faces in frame)");}} catch (e) {log("Frame Error: " + e.message);} finally {if (videoTensor) {videoTensor.dispose();}}}requestAnimationFrame(processFramesLoop);}function startCalibration() {startBtn.style.display = 'none';statusText.innerText = "Stare at the red dot and TAP the screen to capture.";calibrationStep = 0;showNextCalibrationDot();}function showNextCalibrationDot() {if (calibrationStep < 4) {calibDot.style.display = 'block';calibDot.style.left = ${screenTargets[calibrationStep].x}px;calibDot.style.top = ${screenTargets[calibrationStep].y}px;} else {calibDot.style.display = 'none';document.getElementById('ui-overlay').style.display = 'none';isCalibrated = true;gazePointer.style.display = 'block';// Loop step initializing the background visualizer frame loopdrawHeatmapLoop();}}const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';window.addEventListener(triggerEvent, (e) => {if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.closest?.('#settings-panel')) return;if (!currentFeatures) return;const keys = ['tl', 'tr', 'bl', 'br'];eyeGrid[keys[calibrationStep]] = { x: currentFeatures.x, y: currentFeatures.y };calibrationStep++;showNextCalibrationDot();});function processGazeMapping(ex, ey) {const { tl, tr, bl, br } = eyeGrid;const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);const u = Math.max(0, Math.min(1, tx));const v = Math.max(0, Math.min(1, ty));let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[0].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;smoothingBuffer.push({ x: targetX, y: targetY });// Dynamically shift buffer cutoff depth based on the panel range configuration sliderswhile (smoothingBuffer.length > smoothFrames) {smoothingBuffer.shift();}const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;gazePointer.style.left = ${avgX}px;gazePointer.style.top = ${avgY}px;// Store coordinate points data map matrix array configuration sets for our visualization layerheatmapData.push({ x: avgX, y: avgY, weight: 1 });}// New Linear Interpolation Gradient Color Matrix Drawing Systemfunction drawHeatmapLoop() {if (!isCalibrated) return;heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);// Render cumulative glowing color circles targeting user look paths data patternsheatmapData.forEach(point => {let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');    // Core look focus (Hot Red)gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); // Fringe variance zone (Yellow)gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          // Outer margins decay boundary (Transparent)heatmapCtx.fillStyle = gradient;heatmapCtx.beginPath();heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);heatmapCtx.fill();});requestAnimationFrame(drawHeatmapLoop);}
+                      window.onload = () => {setTimeout(initSystem, 1000);};
+</script>
+</body>
+</html>
