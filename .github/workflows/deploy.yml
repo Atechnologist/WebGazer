@@ -1,4 +1,4 @@
-name: Deploy Native Tracker to Pages
+name: Compile WebGazer and Deploy Pages
 
 on:
   push:
@@ -12,7 +12,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up NodeJS Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm install filemanager-webpack-plugin@3.0.0 --save-dev
+          npm install
+
+      - name: Compile WebGazer assets
+        run: npm run build
+
+      - name: Staging Core Production Workspace
+        run: |
+          # Create isolation folder tree matching our script source targets
+          mkdir -p _site
+          mkdir -p _site/dist
+
+          # WebGazer builds explicitly into dist/ based on package.json rules
+          if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
+            cp -r dist/* _site/dist/
+            echo "Successfully migrated distribution bundle compilation."
+          else
+            echo "ERROR: Webpack build step failed to output dist/ tracking artifacts."
+            exit 1
+          fi
+
+          # Drop your clean root index into the isolated live web directory package 
+          cp index.html _site/
+
+          echo "=== PACKAGED ASSETS ==="
+          ls -R _site
+
+      - name: Upload Static Website Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
   deploy-to-pages:
+    needs: build-and-compile
     runs-on: ubuntu-latest
     
     permissions:
@@ -24,42 +71,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout repository code
-        uses: actions/checkout@v4
-
-      - name: Download Local Core AI Engine Assets
-        run: |
-          mkdir -p _site/assets/js
-          
-          echo "=== TRYING ROUTE 1: GOOGLE PRODUCTION SERVERS ==="
-          curl -L --connect-timeout 15 --retry 3 "https://googleapis.com" -o _site/assets/js/face_mesh.js || {
-            echo "Google Main script failed, switching to Route 2 (cdnjs)..."
-            curl -L "https://cloudflare.com" -o _site/assets/js/face_mesh.js
-          }
-          
-          # Pull the underlying mathematical binary packages and model weights directly from stable alternatives
-          curl -L --connect-timeout 15 --retry 3 "https://googleapis.com" -o _site/assets/js/face_mesh.binarypb || {
-            echo "Primary model fetch failed, trying alternate mirror..."
-            curl -L "https://unpkg.com" -o _site/assets/js/face_mesh.binarypb
-          }
-
-          # Fetch required system helpers directly from high-speed open-source caches
-          curl -L "https://unpkg.com" -o _site/assets/js/face_mesh_solution_simd_wasm_bin.js
-          curl -L "https://unpkg.com" -o _site/assets/js/face_mesh_solution_wasm_bin.js
-
-      - name: Package Application UI
-        run: |
-          # Copy your main web interface file right into the isolated distribution folder
-          cp index.html _site/
-          
-          echo "=== VERIFYING NATIVE ASSET INVENTORY ==="
-          ls -R _site
-
-      - name: Upload Static Website Artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '_site'
-
       - name: Deploy to Live Web URL
         id: deployment
         uses: actions/deploy-pages@v4
+        
