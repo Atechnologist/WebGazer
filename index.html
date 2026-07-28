@@ -140,30 +140,40 @@
     async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
         try {
-            // FIX: Wrap the videoElement inside the expected inputs structure configuration object
-            const faces = await detector.estimateFaces({
-                input: videoElement,
-                returnTensors: false,
-                flipHorizontal: false
-            });
+            // Pass the raw videoElement directly as required by faceLandmarksDetection
+            const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
 
             if (faces && faces.length > 0) {
                 log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-                const keypoints = faces[0].keypoints;
                 
-                // MediaPipe FaceMesh indices: 33/133 = left eye outer/inner corner, 468 = left pupil center
-                const outer = keypoints[33];
-                const inner = keypoints[133];
-                const pupil = keypoints[468];
+                // Extract keypoints directly from the first face array index
+                const keypoints = faces[0].scaledMesh || faces[0].keypoints;
                 
-                if (outer && inner && pupil) {
-                    const eyeCenterX = (inner.x + outer.x) / 2;
-                    const eyeCenterY = (inner.y + outer.y) / 2;
-                    const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
-                    let calculatedX = (pupil.x - eyeCenterX) / eyeWidth;
-                    if (invertX) { calculatedX = -calculatedX; }
-                    currentFeatures = { x: calculatedX, y: (pupil.y - eyeCenterY) / eyeWidth };
-                    if (isCalibrated) { processGazeMapping(currentFeatures.x, currentFeatures.y); }
+                if (keypoints) {
+                    // Pull specific landmark array nodes securely via bracket coordinates 
+                    const outer = keypoints[33];
+                    const inner = keypoints[133];
+                    const pupil = keypoints[468];
+                    
+                    if (outer && inner && pupil) {
+                        // Support both modern label arrays ([x, y]) or classic structured maps ({x, y})
+                        const ox = typeof outer.x !== 'undefined' ? outer.x : outer[0];
+                        const oy = typeof outer.y !== 'undefined' ? outer.y : outer[1];
+                        const ix = typeof inner.x !== 'undefined' ? inner.x : inner[0];
+                        const iy = typeof inner.y !== 'undefined' ? inner.y : inner[1];
+                        const px = typeof pupil.x !== 'undefined' ? pupil.x : pupil[0];
+                        const py = typeof pupil.y !== 'undefined' ? pupil.y : pupil[1];
+
+                        const eyeCenterX = (ix + ox) / 2;
+                        const eyeCenterY = (iy + oy) / 2;
+                        const eyeWidth = Math.hypot(ox - ix, oy - iy);
+                        
+                        let calculatedX = (px - eyeCenterX) / eyeWidth;
+                        if (invertX) { calculatedX = -calculatedX; }
+                        
+                        currentFeatures = { x: calculatedX, y: (py - eyeCenterY) / eyeWidth };
+                        if (isCalibrated) { processGazeMapping(currentFeatures.x, currentFeatures.y); }
+                    }
                 }
             } else {
                 log("Searching for eyes / face context... (No faces in frame)");
