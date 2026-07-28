@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Verified Engine</title>
+    <title>Mobile Gaze Tracker - Working Blueprint</title>
     
+    <!-- 1. Universal Web-Ready MediaPipe Core Engine (The official demo script path) -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -54,15 +57,11 @@
     <div id="gaze-pointer"></div>
 
     <div id="ui-overlay">
-        <h2 id="status-text">Loading Google Vision Assets...</h2>
-        <button id="start-btn" id="start-btn-action" disabled>Start Calibration</button>
+        <h2 id="status-text">Loading Face AI Models...</h2>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-<script type="module">
-    // 1. Direct Module Imports from Google's official jsDelivr CDN repository mirror
-    import vision from "https://jsdelivr.net";
-    const { FaceLandmarker, FilesetResolver } = vision;
-
+<script>
     const videoElement = document.getElementById('webcam');
     const calibDot = document.getElementById('calib-dot');
     const gazePointer = document.getElementById('gaze-pointer');
@@ -89,15 +88,30 @@
     function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
     async function initSystem() {
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            log("Security Block: Mobile hardware streams require HTTPS connection.");
+            statusText.innerText = "Deployment Error: Switch page to HTTPS.";
+            return;
+        }
+
+        // 2. Extract constructors using Google's working non-module window factory initialization routine
+        const createVisionInstance = window.createMediaPipeVision;
+        if (!createVisionInstance) {
+            log("Boot Error: The vision package failed to attach to the window instance.");
+            return;
+        }
+
         try {
-            log("Configuring deep Fileset WebAssembly engine mappings...");
-            
-            // 2. Fetch runtime core dependencies directly from verified Google CDN buckets
+            log("Compiling fileset resolver objects...");
+            const visionInstance = await createVisionInstance();
+            const FilesetResolver = visionInstance.FilesetResolver;
+            const FaceLandmarker = visionInstance.FaceLandmarker;
+
             const filesetResolver = await FilesetResolver.forVisionTasks(
-                "https://jsdelivr.net"
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
             );
 
-            log("Downloading face landmarker model matrix tracking maps...");
+            log("Downloading target model architecture binaries...");
             faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -105,11 +119,11 @@
                 },
                 outputFaceBlendshapes: false,
                 outputFacialTransformationMatrixes: false,
-                runningMode: "VIDEO",
+                runningMode: "VIDEO", // Sets video execution loop tracks
                 numFaces: 1
             });
 
-            log("Requesting local device camera access...");
+            log("Requesting user device webcam streams...");
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
@@ -117,35 +131,32 @@
             
             videoElement.srcObject = stream;
             videoElement.onloadedmetadata = () => {
-                log("AI loop tracking active. Ready to calibrate.");
+                log("AI processing loop running smoothly.");
                 statusText.innerText = "Hold your device steady";
                 startBtn.disabled = false;
-                
-                // Mount frame processor track loops execution layer
-                processFramesLoop();
+                processVideoFrameLoop();
             };
 
         } catch (err) {
             log("Boot Error: " + err.message);
-            statusText.innerText = "Setup blocked. Verify application runs over HTTPS.";
+            statusText.innerText = "Setup failed. Check device parameters.";
             console.error(err);
         }
     }
 
     let lastVideoTime = -1;
-    async function processFramesLoop() {
+    async function processVideoFrameLoop() {
         if (videoElement.currentTime !== lastVideoTime) {
             lastVideoTime = videoElement.currentTime;
             
             if (faceLandmarker && videoElement.readyState >= 2) {
-                // Execute standard synchronous analysis call targeting current context frame
-                const result = faceLandmarker.detectForVideo(videoElement, performance.now());
+                const result = faceLandmarker.detectForVideo(videoElement, performance.now()); // Run inferences
                 
                 if (result.faceLandmarks && result.faceLandmarks.length > 0) {
-                    const landmarks = result.faceLandmarks[0]; // Map the first active tracked face mesh element
+                    const landmarks = result.faceLandmarks[0]; // Capture the current tracked face map index array
 
-                    // MediaPipe RefineLandmarks Target Metrics Coordinate Array Maps:
-                    // Landmark Node 33 = Left eye outer, 133 = Left eye inner, 468 = Left pupil center
+                    // Pull precise 3D landscape nodes mapping pupil/iris points:
+                    // 33 = Left eye outer edge, 133 = Left eye inner edge, 468 = Left pupil center matrix
                     const outer = landmarks[33];
                     const inner = landmarks[133];
                     const pupil = landmarks[468];
@@ -155,7 +166,7 @@
                         const eyeCenterY = (inner.y + outer.y) / 2;
                         const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
 
-                        // Isolate raw horizontal and vertical pupil position variations
+                        // Isolate pupil movement offset parameters
                         currentFeatures = {
                             x: (pupil.x - eyeCenterX) / eyeWidth,
                             y: (pupil.y - eyeCenterY) / eyeWidth
@@ -168,7 +179,7 @@
                 }
             }
         }
-        requestAnimationFrame(processFramesLoop);
+        requestAnimationFrame(processVideoFrameLoop);
     }
 
     function startCalibration() {
@@ -188,6 +199,7 @@
             document.getElementById('ui-overlay').style.display = 'none';
             isCalibrated = true;
             gazePointer.style.display = 'block';
+            log("Tracking operational.");
         }
     }
 
@@ -214,23 +226,9 @@
         const v = Math.max(0, Math.min(1, ty));
 
         let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;
+        let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
         smoothingBuffer.push({ x: targetX, y: targetY });
         if (smoothingBuffer.length > SMOOTH_FRAMES) smoothingBuffer.shift();
 
-        const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
-        const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
-
-        gazePointer.style.left = `${avgX}px`;
-        gazePointer.style.top = `${avgY}px`;
-    }
-
-    // Attach activation function triggers directly to the UI elements interface layer
-    startBtn.addEventListener('click', startCalibration);
-
-    // Boot execution loop sequence
-    initSystem();
-</script>
-</body>
-</html>
+    
