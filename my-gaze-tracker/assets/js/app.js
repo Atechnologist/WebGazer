@@ -9,10 +9,18 @@ const heatmapCtx = heatmapCanvas.getContext('2d');
 
 let detector = null, currentFeatures = null, calibrationStep = 0, isCalibrated = false;
 let smoothFrames = 6, invertX = false, heatmapData = []; 
-let hoverStartTime = null, relayActivated = false;
+
+// Core persistent state trackers for the relay button dwell loop
+let hoverStartTime = null;
+let relayActivated = false;
 const DWELL_DELAY_MS = 2000;
 
-const screenTargets = [{ x: 40, y: 40 }, { x: window.innerWidth - 40, y: 40 }, { x: 40, y: window.innerHeight - 40 }, { x: window.innerWidth - 40, y: window.innerHeight - 40 }];
+const screenTargets = [
+    { x: 40, y: 40 }, 
+    { x: window.innerWidth - 40, y: 40 }, 
+    { x: 40, y: window.innerHeight - 40 }, 
+    { x: window.innerWidth - 40, y: window.innerHeight - 40 }
+];
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 const smoothingBuffer = [];
 
@@ -71,25 +79,24 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
-    if (calibrationStep < 4) {
-        calibDot.style.display = 'block';
-        calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
-        calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-    } else {
-        calibDot.style.display = 'none';
-        document.getElementById('ui-overlay').style.display = 'none';
-        isCalibrated = true;
-        gazePointer.style.display = 'block';
+    if (calibrationStep < 4) { 
+        calibDot.style.display = 'block'; 
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
+    } else { 
+        calibDot.style.display = 'none'; 
+        document.getElementById('ui-overlay').style.display = 'none'; 
+        isCalibrated = true; 
+        gazePointer.style.display = 'block'; 
         
-        // FIX 1: This will now successfully fire because the runtime syntax errors above are completely gone!
-        const relayBtn = document.getElementById('relay-button-target');
-        if (relayBtn) {
-            relayBtn.style.display = 'block';
+        // Target element securely and bypass any missing reference errors
+        const targetBtn = document.getElementById('relay-button-target');
+        if (targetBtn) {
+            targetBtn.style.display = 'block';
         }
-        drawHeatmapLoop();
+        drawHeatmapLoop(); 
     }
 }
-
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
@@ -109,8 +116,7 @@ function processGazeMapping(ex, ey) {
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
     
-    // FIX 2: Corrected the array container selectors mapping targets!
-    // Changed old 'screenTargets.x' into explicit target index variables: 'screenTargets[0].x', etc.
+    // Explicit array element extraction fix to mapping parameters
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
     
@@ -124,40 +130,23 @@ function processGazeMapping(ex, ey) {
     gazePointer.style.top = `${avgY}px`;
     
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
-    
     checkRelayButtonDwell(avgX, avgY);
 }
+
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
     if (!btn || relayActivated) return;
-
+    
     const rect = btn.getBoundingClientRect();
     const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
-
+    
     if (isOverlapping) {
-        if (!hoverStartTime) {
-            hoverStartTime = performance.now(); // Starts tracking the time seamlessly
-            btn.classList.add('gaze-hover');
-        }
-
+        if (!hoverStartTime) { hoverStartTime = performance.now(); btn.classList.add('gaze-hover'); }
         const durationLooked = performance.now() - hoverStartTime;
         const progressPercentage = Math.min(100, Math.floor((durationLooked / DWELL_DELAY_MS) * 100));
-        
         btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
-
-        if (durationLooked >= DWELL_DELAY_MS) {
-            relayActivated = true;
-            btn.classList.remove('gaze-hover');
-            btn.classList.add('triggered');
-            btn.innerText = "💥 RELAY ACTIVE!";
-            log("Automation Event: Relay executed!");
-        }
-    } else {
-        // Reset state properties immediately if your gaze leaves the button container margins
-        hoverStartTime = null;
-        btn.classList.remove('gaze-hover');
-        btn.innerText = "RELAY SWITCH [0%]";
-    }
+        if (durationLooked >= DWELL_DELAY_MS) { relayActivated = true; btn.classList.remove('gaze-hover'); btn.classList.add('triggered'); btn.innerText = "💥 RELAY ACTIVE!"; log("Automation Event: Relay executed!"); }
+    } else { hoverStartTime = null; btn.classList.remove('gaze-hover'); btn.innerText = "RELAY SWITCH [0%]"; }
 }
 
 function drawHeatmapLoop() {
@@ -165,21 +154,10 @@ function drawHeatmapLoop() {
     heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
     heatmapData.forEach(point => {
         let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); 
-        gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); 
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
-        heatmapCtx.fillStyle = gradient; 
-        heatmapCtx.beginPath(); 
-        heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); 
-        heatmapCtx.fill();
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
+        heatmapCtx.fillStyle = gradient; heatmapCtx.beginPath(); heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); heatmapCtx.fill();
     });
     requestAnimationFrame(drawHeatmapLoop);
 }
 
-window.startCalibration = startCalibration;
-window.toggleSettings = toggleSettings;
-window.updateSettings = updateSettings;
-window.clearHeatmap = clearHeatmap;
-
-window.onload = () => { if (typeof initSystem === 'function') setTimeout(initSystem, 1000); };
-
+window.onload = () => { setTimeout(initSystem, 1000); };
