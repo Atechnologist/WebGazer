@@ -36,45 +36,36 @@ button:disabled {
 .control-group input[type="range"] { width: 100%; }
 .control-group span { float: right; font-family: monospace; color: #aaa; }
 
-#relay-button-target {
-    position: absolute; bottom: 25%; left: 50%; transform: translateX(-50%); width: 220px; height: 90px;
-    background-color: rgba(51, 51, 51, 0.85); border: 3px solid #ff9900; border-radius: 12px;
-    color: #ff9900; font-weight: bold; text-align: center; line-height: 90px; font-size: 16px;
-    z-index: 10; box-shadow: 0 0 15px rgba(255, 153, 0, 0.3); transition: all 0.3s ease; display: none;
-}
-#relay-button-target.gaze-hover { background-color: #ff9900; color: #111; box-shadow: 0 0 25px #ff9900; scale: 1.05; }
-#relay-button-target.triggered { background-color: #00ffcc; border-color: #00ffcc; color: #111; box-shadow: 0 0 35px #00ffcc; }
-/* Styling for the industrial automation relay tracking block element */
+/* Update ONLY this section inside your <style> tag to shift the button layout position */
 #relay-button-target {
     position: absolute;
-    bottom: 25%;
+    top: 15%; /* Moved from bottom: 25% up to top: 15% to clear the webcam completely */
     left: 50%;
     transform: translateX(-50%);
-    width: 220px;
-    height: 90px;
-    background-color: rgba(51, 51, 51, 0.85);
+    width: 240px; /* Made slightly wider to prevent text wrapping on mobile devices */
+    height: 80px;
+    background-color: rgba(30, 30, 30, 0.9); /* Darkened opacity to stand out against the heatmap */
     border: 3px solid #ff9900;
     border-radius: 12px;
     color: #ff9900;
     font-weight: bold;
     text-align: center;
-    line-height: 90px;
+    line-height: 80px;
     font-size: 16px;
-    z-index: 10;
-    box-shadow: 0 0 15px rgba(255, 153, 0, 0.3);
-    transition: all 0.3s ease;
-    display: none; /* Stays hidden until four calibration dots complete processing */
+    z-index: 25; /* Raised above everything else to prevent element clipping */
+    box-shadow: 0 0 20px rgba(255, 153, 0, 0.4);
+    transition: all 0.2s ease;
+    display: none; /* Keeps it hidden until your 4-point calibration step finishes */
 }
 #relay-button-target.gaze-hover {
     background-color: #ff9900;
     color: #111;
-    box-shadow: 0 0 25px #ff9900;
+    box-shadow: 0 0 30px #ff9900;
     scale: 1.05;
 }
 #relay-button-target.triggered {
     background-color: #00ffcc;
     border-color: #00ffcc;
     color: #111;
-    box-shadow: 0 0 35px #00ffcc;
+    box-shadow: 0 0 40px #00ffcc;
 }
-
