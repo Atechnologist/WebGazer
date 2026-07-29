@@ -93,7 +93,6 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
-    // FIX 2: Wrapped index validation checks safely inside the array limits bounds
     if (calibrationStep < 4) { 
         calibDot.style.display = 'block'; 
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
@@ -104,15 +103,17 @@ function showNextCalibrationDot() {
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
+        // FIX: Inject the active operational styles onto our pre-rendered box!
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
-            targetBtn.style.setProperty('display', 'block', 'important');
-            targetBtn.style.visibility = 'visible';
-            log("Gaze tracking active. Relay Switch container initialized.");
+            targetBtn.classList.add('active-ready');
+            targetBtn.innerText = "RELAY SWITCH [0%]";
+            log("Gaze tracking active. Relay Switch container unlocked.");
         }
         drawHeatmapLoop(); 
     }
 }
+
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
@@ -157,7 +158,8 @@ function processGazeMapping(ex, ey) {
 
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
-    if (!btn || relayActivated) return;
+     if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
+    
     
     const rect = btn.getBoundingClientRect();
     const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
