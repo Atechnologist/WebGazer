@@ -36,53 +36,45 @@ button:disabled {
 .control-group input[type="range"] { width: 100%; }
 .control-group span { float: right; font-family: monospace; color: #aaa; }
 
+/* Update this specific block inside assets/css/style.css */
 #relay-button-target {
-    position: fixed;
-    top: 15%; 
-    left: 50%;
-    transform: translateX(-50%);
-    width: 240px; 
-    height: 80px;
-    border-radius: 12px;
-    font-weight: bold;
-    text-align: center;
-    line-height: 74px; 
-    font-size: 16px;
-    z-index: 9999 !important; 
-    box-sizing: border-box;
-    transition: all 0.2s ease;
-    
-    /* FIX 1: Make it visible immediately on load, exactly like the Settings button! */
+    /* FIX 2: Altered from absolute/fixed floating to block flow layout inside the menu wrapper */
     display: block !important;
     visibility: visible !important;
+    box-sizing: border-box;
+    width: 100%; 
+    height: 60px;
+    margin-top: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 54px; 
+    font-size: 14px;
+    transition: all 0.2s ease;
     
-    /* FIX 2: Style it as dim and grey initially so you know it is waiting for calibration */
-    background-color: rgba(30, 30, 30, 0.4) !important;
-    border: 3px dashed #555 !important;
-    color: #555 !important;
-    box-shadow: none;
-    pointer-events: none; /* Ignore eyes/taps until calibrated */
+    /* Initially dim and greyed-out to show it's locked until calibration tap routines finish */
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 2px dashed #444 !important;
+    color: #545454 !important;
 }
 
-/* New active training state class added by JavaScript at the end of tap loops */
+/* Active ready state class added dynamically via JavaScript */
 #relay-button-target.active-ready {
-    background-color: rgba(30, 30, 30, 0.95) !important;
-    border: 3px solid #ff9900 !important;
+    background-color: rgba(255, 153, 0, 0.1) !important;
+    border: 2px solid #ff9900 !important;
     color: #ff9900 !important;
-    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
-    pointer-events: auto; /* Turn on gaze processing collisions */
+    box-shadow: 0 0 10px rgba(255, 153, 0, 0.2);
 }
 
 #relay-button-target.gaze-hover {
     background-color: #ff9900 !important;
     color: #111 !important;
-    box-shadow: 0 0 35px #ff9900;
-    transform: translateX(-50%) scale(1.05);
+    box-shadow: 0 0 20px #ff9900;
 }
 
 #relay-button-target.triggered {
     background-color: #00ffcc !important;
     border-color: #00ffcc !important;
     color: #111 !important;
-    box-shadow: 0 0 45px #00ffcc;
+    box-shadow: 0 0 25px #00ffcc;
 }
