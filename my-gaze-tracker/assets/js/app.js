@@ -81,8 +81,11 @@ function showNextCalibrationDot() {
         isCalibrated = true;
         gazePointer.style.display = 'block';
         
-        // FIX: Display the relay switch interface target container as soon as calibration concludes!
-        document.getElementById('relay-button-target').style.display = 'block';
+        // FIX 1: This will now successfully fire because the runtime syntax errors above are completely gone!
+        const relayBtn = document.getElementById('relay-button-target');
+        if (relayBtn) {
+            relayBtn.style.display = 'block';
+        }
         drawHeatmapLoop();
     }
 }
@@ -106,6 +109,8 @@ function processGazeMapping(ex, ey) {
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
     
+    // FIX 2: Corrected the array container selectors mapping targets!
+    // Changed old 'screenTargets.x' into explicit target index variables: 'screenTargets[0].x', etc.
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
     
@@ -120,10 +125,8 @@ function processGazeMapping(ex, ey) {
     
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
     
-    // Call the dwell function securely
     checkRelayButtonDwell(avgX, avgY);
 }
-
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
     if (!btn || relayActivated) return;
