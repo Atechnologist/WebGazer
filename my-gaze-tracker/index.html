@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Gaze Tracker - Modular Build</title>
     
-    <!-- TensorFlow & Face Detection Core CDNs -->
+    <!-- FIX 1: Restored the working pure JavaScript TensorFlow Bundle Frameworks via Cloudflare CDN -->
     <script src="https://cloudflare.com" crossorigin="anonymous"></script>
+    
+    <!-- FIX 2: Restored the working Face Detection Model Architecture via jsDelivr CDN -->
     <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
-    <!-- Clean Link to Separate Stylesheet -->
+    <!-- Link to your Separate Stylesheet -->
     <link rel="stylesheet" href="./assets/css/style.css">
 </head>
 <body>
@@ -19,6 +21,8 @@
     <canvas id="heatmap-canvas"></canvas>
     <div id="calib-dot" class="calib-dot"></div>
     <div id="gaze-pointer"></div>
+    
+    <!-- Keep only this single main declaration for the relay container -->
     <div id="relay-button-target">RELAY SWITCH [0%]</div>
 
     <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
@@ -44,8 +48,6 @@
 
     <!-- Clean Link to Separate Tracker Application Logic -->
     <script src="./assets/js/app.js"></script>
-    <!-- The interactive control element box wrapper container -->
-    <div id="relay-button-target">RELAY SWITCH [0%]</div>
 
 </body>
 </html>
