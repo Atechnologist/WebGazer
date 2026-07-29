@@ -107,14 +107,19 @@ function showNextCalibrationDot() {
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
-        // Target element securely and bypass any missing reference errors
+        // HARD INJECTION FALLBACK RULE: Forces the button to display, overriding hidden DOM bottlenecks
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
-            targetBtn.style.display = 'block';
+            targetBtn.style.setProperty('display', 'block', 'important');
+            targetBtn.style.visibility = 'visible';
+            log("Gaze tracking active. Relay Switch container initialized.");
+        } else {
+            log("System Error: relay-button-target missing from HTML stream.");
         }
         drawHeatmapLoop(); 
     }
 }
+
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
