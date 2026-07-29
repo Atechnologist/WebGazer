@@ -1,0 +1,46 @@
+body, html { 
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #111; font-family: sans-serif; 
+}
+#webcam { 
+    position: absolute; width: 90px; height: 120px; bottom: 10px; right: 10px; border-radius: 8px; transform: scaleX(-1); border: 2px solid #333; z-index: 10; object-fit: cover; 
+}
+.calib-dot { 
+    position: absolute; width: 40px; height: 40px; background-color: #ff3366; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 20; box-shadow: 0 0 15px #ff3366; 
+}
+#gaze-pointer { 
+    position: absolute; width: 22px; height: 22px; background-color: #00ffcc; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 30; box-shadow: 0 0 10px #00ffcc; pointer-events: none; 
+}
+#heatmap-canvas { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; opacity: 0.6; 
+}
+#ui-overlay { 
+    position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; z-index: 15; width: 80%; 
+}
+#debug-console { 
+    position: absolute; top: 10px; left: 10px; color: #00ffcc; font-family: monospace; font-size: 11px; z-index: 40; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 4px; max-width: 60%; word-break: break-all; 
+}
+button { 
+    padding: 12px 24px; font-size: 14px; font-weight: bold; background-color: #00ffcc; border: none; border-radius: 6px; cursor: pointer; color: #111; 
+}
+button:disabled { 
+    background-color: #333; color: #666; cursor: not-allowed; 
+}
+#settings-btn { 
+    position: absolute; top: 10px; right: 10px; z-index: 45; background-color: #333; color: #fff; border: 1px solid #555; padding: 8px 12px; font-size: 11px; border-radius: 4px; 
+}
+#settings-panel { 
+    position: absolute; top: 50px; right: 10px; z-index: 45; background: rgba(0,0,0,0.95); border: 1px solid #333; padding: 15px; border-radius: 6px; color: #fff; font-size: 12px; width: 220px; display: none; 
+}
+.control-group { margin-bottom: 12px; }
+.control-group label { display: block; margin-bottom: 4px; color: #00ffcc; }
+.control-group input[type="range"] { width: 100%; }
+.control-group span { float: right; font-family: monospace; color: #aaa; }
+
+#relay-button-target {
+    position: absolute; bottom: 25%; left: 50%; transform: translateX(-50%); width: 220px; height: 90px;
+    background-color: rgba(51, 51, 51, 0.85); border: 3px solid #ff9900; border-radius: 12px;
+    color: #ff9900; font-weight: bold; text-align: center; line-height: 90px; font-size: 16px;
+    z-index: 10; box-shadow: 0 0 15px rgba(255, 153, 0, 0.3); transition: all 0.3s ease; display: none;
+}
+#relay-button-target.gaze-hover { background-color: #ff9900; color: #111; box-shadow: 0 0 25px #ff9900; scale: 1.05; }
+#relay-button-target.triggered { background-color: #00ffcc; border-color: #00ffcc; color: #111; box-shadow: 0 0 35px #00ffcc; }
