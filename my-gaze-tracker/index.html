@@ -1,52 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Modular Build</title>
+/* Ensure this block is at the bottom of assets/css/style.css */
+#relay-button-target {
+    position: fixed;
+    top: 15%; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px; 
+    height: 80px;
+    border-radius: 12px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 74px; 
+    font-size: 16px;
+    z-index: 9999 !important; 
+    box-sizing: border-box;
+    transition: all 0.2s ease;
     
-    <!-- TensorFlow & Face Detection Core CDNs -->
-    <script src="https://cloudflare.com" crossorigin="anonymous"></script>
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-
-    <!-- Link to Separate Stylesheet -->
-    <link rel="stylesheet" href="./assets/css/style.css">
-    <link rel="icon" href="data:,">
-</head>
-<body>
-
-    <div id="debug-console">System Log: Downloading core engine structures...</div>
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="heatmap-canvas"></canvas>
-    <div id="calib-dot" class="calib-dot"></div>
-    <div id="gaze-pointer"></div>
-
-    <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
-    <div id="settings-panel">
-        <div class="control-group">
-            <label>Smoothing (Jitter Fix)</label>
-            <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()">
-            <span id="smooth-val">6 frames</span>
-        </div>
-        <div class="control-group">
-            <label>X-Axis Inversion</label>
-            <input type="checkbox" id="invert-x-check" onchange="updateSettings()"> Invert Horizontal Map
-        </div>
-        <div class="control-group">
-            <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white;">Clear Heatmap</button>
-        </div>
-    </div>
-
-    <div id="ui-overlay">
-        <h2 id="status-text">Loading Neural Web Models...</h2>
-        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
-    </div>
-
-    <!-- 1. The ONLY Relay button definition. Placed cleanly in the root view tree -->
-    <div id="relay-button-target">RELAY SWITCH [0%]</div>
-
-    <!-- 2. CRITICAL: Moved the JS engine script to the absolute bottom of body so the DOM parses first -->
-    <script src="./assets/js/app.js"></script>
-
-</body>
-</html>
+    /* Make visible immediately on load, exactly like the Settings button */
+    display: block !important;
+    visibility: visible !important;
+    
+    /* Styled as dim and grayed-out initially until calibration registers */
+    background-color: rgba(30, 30, 30, 0.4) !important;
+    border: 3px dashed #555 !important;
+    color: #555 !important;
+    box-shadow: none;
+    pointer-events: none; 
+}
+#relay-button-target.active-ready {
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    border: 3px solid #ff9900 !important;
+    color: #ff9900 !important;
+    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
+    pointer-events: auto; 
+}
+#relay-button-target.gaze-hover {
+    background-color: #ff9900 !important;
+    color: #111 !important;
+    box-shadow: 0 0 35px #ff9900;
+    transform: translateX(-50%) scale(1.05);
+}
+#relay-button-target.triggered {
+    background-color: #00ffcc !important;
+    border-color: #00ffcc !important;
+    color: #111 !important;
+    box-shadow: 0 0 45px #00ffcc;
+}
