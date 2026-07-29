@@ -45,8 +45,26 @@ async function initSystem() {
         log("Requesting frontend webcam video tokens...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
         videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => { log("AI processing framework live. Ready to calibrate."); statusText.innerText = "Hold your device steady"; startBtn.disabled = false; processFramesLoop(); };
-    } catch (err) { log("Boot Error: " + err.message); statusText.innerText = "Setup blocked. Check device hardware settings."; console.error(err); }
+        videoElement.onloadedmetadata = () => { 
+    log("AI processing framework live. Ready to calibrate."); 
+    statusText.innerText = "Hold your device steady"; 
+    startBtn.disabled = false; 
+    
+    // Show relay button immediately, independent of calibration
+    const targetBtn = document.getElementById('relay-button-target');
+    if (targetBtn) targetBtn.style.display = 'block';
+    videoElement.onloadedmetadata = () => { 
+    log("AI processing framework live. Ready to calibrate."); 
+    statusText.innerText = "Hold your device steady"; 
+    startBtn.disabled = false; 
+    
+    // Show relay button immediately, independent of calibration
+    const targetBtn = document.getElementById('relay-button-target');
+    if (targetBtn) targetBtn.style.display = 'block';
+    
+    processFramesLoop(); 
+};
+    { log("Boot Error: " + err.message); statusText.innerText = "Setup blocked. Check device hardware settings."; console.error(err); }
 }
 
 async function processFramesLoop() {
@@ -135,8 +153,7 @@ function processGazeMapping(ex, ey) {
 
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
-    if (!btn || relayActivated) return;
-    
+    if (!btn || relayActivated || !isCalibrated) return;  // added !isCalibrated
     const rect = btn.getBoundingClientRect();
     const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
     
