@@ -37,36 +37,49 @@ button:disabled {
 .control-group span { float: right; font-family: monospace; color: #aaa; }
 
 #relay-button-target {
-    /* FIX 1: Forced fixed positioning to lock the box directly to the screen glass */
     position: fixed;
-    top: 20%; 
+    top: 15%; 
     left: 50%;
     transform: translateX(-50%);
-    
-    /* FIX 2: Enforced an explicit display layout to override container compression */
-    display: none; 
-    box-sizing: border-box;
-    
-    width: 260px; 
+    width: 240px; 
     height: 80px;
-    background-color: rgb(30, 30, 30) !important; /* Forces a solid background layer */
-    border: 3px solid #ff9900 !important;
     border-radius: 12px;
-    color: #ff9900 !important;
     font-weight: bold;
     text-align: center;
-    line-height: 74px; /* Balanced line-height to center text perfectly inside an 80px border */
+    line-height: 74px; 
     font-size: 16px;
-    z-index: 9999 !important; /* Elevates it completely above all canvases and videos */
-    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
+    z-index: 9999 !important; 
+    box-sizing: border-box;
     transition: all 0.2s ease;
+    
+    /* FIX 1: Make it visible immediately on load, exactly like the Settings button! */
+    display: block !important;
+    visibility: visible !important;
+    
+    /* FIX 2: Style it as dim and grey initially so you know it is waiting for calibration */
+    background-color: rgba(30, 30, 30, 0.4) !important;
+    border: 3px dashed #555 !important;
+    color: #555 !important;
+    box-shadow: none;
+    pointer-events: none; /* Ignore eyes/taps until calibrated */
 }
+
+/* New active training state class added by JavaScript at the end of tap loops */
+#relay-button-target.active-ready {
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    border: 3px solid #ff9900 !important;
+    color: #ff9900 !important;
+    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
+    pointer-events: auto; /* Turn on gaze processing collisions */
+}
+
 #relay-button-target.gaze-hover {
     background-color: #ff9900 !important;
     color: #111 !important;
     box-shadow: 0 0 35px #ff9900;
     transform: translateX(-50%) scale(1.05);
 }
+
 #relay-button-target.triggered {
     background-color: #00ffcc !important;
     border-color: #00ffcc !important;
