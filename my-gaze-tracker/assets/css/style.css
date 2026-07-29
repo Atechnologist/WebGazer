@@ -36,36 +36,40 @@ button:disabled {
 .control-group input[type="range"] { width: 100%; }
 .control-group span { float: right; font-family: monospace; color: #aaa; }
 
-/* Update ONLY this section inside your <style> tag to shift the button layout position */
 #relay-button-target {
-    position: absolute;
-    top: 15%; /* Moved from bottom: 25% up to top: 15% to clear the webcam completely */
+    /* FIX 1: Forced fixed positioning to lock the box directly to the screen glass */
+    position: fixed;
+    top: 20%; 
     left: 50%;
     transform: translateX(-50%);
-    width: 240px; /* Made slightly wider to prevent text wrapping on mobile devices */
+    
+    /* FIX 2: Enforced an explicit display layout to override container compression */
+    display: none; 
+    box-sizing: border-box;
+    
+    width: 260px; 
     height: 80px;
-    background-color: rgba(30, 30, 30, 0.9); /* Darkened opacity to stand out against the heatmap */
-    border: 3px solid #ff9900;
+    background-color: rgb(30, 30, 30) !important; /* Forces a solid background layer */
+    border: 3px solid #ff9900 !important;
     border-radius: 12px;
-    color: #ff9900;
+    color: #ff9900 !important;
     font-weight: bold;
     text-align: center;
-    line-height: 80px;
+    line-height: 74px; /* Balanced line-height to center text perfectly inside an 80px border */
     font-size: 16px;
-    z-index: 25; /* Raised above everything else to prevent element clipping */
-    box-shadow: 0 0 20px rgba(255, 153, 0, 0.4);
+    z-index: 9999 !important; /* Elevates it completely above all canvases and videos */
+    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
     transition: all 0.2s ease;
-    display: none; /* Keeps it hidden until your 4-point calibration step finishes */
 }
 #relay-button-target.gaze-hover {
-    background-color: #ff9900;
-    color: #111;
-    box-shadow: 0 0 30px #ff9900;
-    scale: 1.05;
+    background-color: #ff9900 !important;
+    color: #111 !important;
+    box-shadow: 0 0 35px #ff9900;
+    transform: translateX(-50%) scale(1.05);
 }
 #relay-button-target.triggered {
-    background-color: #00ffcc;
-    border-color: #00ffcc;
-    color: #111;
-    box-shadow: 0 0 40px #00ffcc;
+    background-color: #00ffcc !important;
+    border-color: #00ffcc !important;
+    color: #111 !important;
+    box-shadow: 0 0 45px #00ffcc;
 }
