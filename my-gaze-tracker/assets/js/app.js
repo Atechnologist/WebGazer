@@ -97,28 +97,33 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
+    // Check if we are still within the 4 points range (indices 0, 1, 2, 3)
     if (calibrationStep < 4) { 
         calibDot.style.display = 'block'; 
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
     } else { 
+        // 4th tap has been registered! Turn off the training overlays safely
         calibDot.style.display = 'none'; 
-        document.getElementById('ui-overlay').style.display = 'none'; 
+        
+        const overlay = document.getElementById('ui-overlay');
+        if (overlay) overlay.style.display = 'none'; 
+        
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
-        // HARD INJECTION FALLBACK RULE: Forces the button to display, overriding hidden DOM bottlenecks
+        // UNBLOCK THE BOX: This will now successfully execute without crashing!
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
             targetBtn.style.setProperty('display', 'block', 'important');
             targetBtn.style.visibility = 'visible';
             log("Gaze tracking active. Relay Switch container initialized.");
-        } else {
-            log("System Error: relay-button-target missing from HTML stream.");
         }
+        
         drawHeatmapLoop(); 
     }
 }
+
 
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
