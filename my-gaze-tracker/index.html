@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobile Gaze Tracker - Modular Build</title>
+    
+    <!-- TensorFlow & Face Detection Core CDNs -->
+    <script src="https://cloudflare.com" crossorigin="anonymous"></script>
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+
+    <!-- Clean Link to Separate Stylesheet -->
+    <link rel="stylesheet" href="./assets/css/style.css">
+</head>
+<body>
+
+    <div id="debug-console">System Log: Downloading core engine structures...</div>
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="heatmap-canvas"></canvas>
+    <div id="calib-dot" class="calib-dot"></div>
+    <div id="gaze-pointer"></div>
+    <div id="relay-button-target">RELAY SWITCH [0%]</div>
+
+    <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
+    <div id="settings-panel">
+        <div class="control-group">
+            <label>Smoothing (Jitter Fix)</label>
+            <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()">
+            <span id="smooth-val">6 frames</span>
+        </div>
+        <div class="control-group">
+            <label>X-Axis Inversion</label>
+            <input type="checkbox" id="invert-x-check" onchange="updateSettings()"> Invert Horizontal Map
+        </div>
+        <div class="control-group">
+            <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white;">Clear Heatmap</button>
+        </div>
+    </div>
+
+    <div id="ui-overlay">
+        <h2 id="status-text">Loading Neural Web Models...</h2>
+        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+    </div>
+
+    <!-- Clean Link to Separate Tracker Application Logic -->
+    <script src="./assets/js/app.js"></script>
+</body>
+</html>
