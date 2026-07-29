@@ -41,7 +41,7 @@ async function initSystem() {
         await tf.setBackend('webgl');
         await tf.ready();
         log("Downloading target model architecture...");
-        detector = await faceDetection.createDetector(faceDetection.SupportedModels.MediaPipeFaceMesh, { runtime: 'tfjs', maxFaces: 1 });
+        detector = await faceDetection.createDetector(faceDetection.SupportedModels.MediaPipeFaceMesh, { runtime: 'tfjs', maxFaces: 1, refineLandmarks: true });
         log("Requesting frontend webcam video tokens...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
         videoElement.srcObject = stream;
