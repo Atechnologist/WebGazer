@@ -9,8 +9,8 @@
     <script src="https://cloudflare.com" crossorigin="anonymous"></script>
     <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
-    <!-- Cache-Busted Links Mapping Layout Modules -->
-    <link rel="stylesheet" href="./assets/css/style.css?v=embedded_panel">
+    <!-- FIX 1: Removed dot separators to force precise repository subfolder tracking -->
+    <link rel="stylesheet" href="assets/css/style.css?v=subfolder_patch">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -36,7 +36,7 @@
             <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; margin-bottom:15px;">Clear Heatmap</button>
         </div>
         
-        <!-- FIX 1: Embedded the physical Relay target block element INSIDE the working menu container -->
+        <!-- Embedded Relay target block element -->
         <div class="control-group">
             <div id="relay-button-target">RELAY SWITCH [0%]</div>
         </div>
@@ -47,8 +47,8 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- Cache-Busted Link to Separate Tracker Application Logic -->
-    <script src="./assets/js/app.js?v=embedded_panel"></script>
+    <!-- FIX 2: Updated the script source path to lock onto the deep repository folder layout -->
+    <script src="assets/js/app.js?v=subfolder_patch"></script>
 
 </body>
 </html>
