@@ -105,32 +105,35 @@ function processGazeMapping(ex, ey) {
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
+    
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+    
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
+    
     const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
-    gazePointer.style.left = `${avgX}px`; gazePointer.style.top = `${avgY}px`;
+    
+    gazePointer.style.left = `${avgX}px`; 
+    gazePointer.style.top = `${avgY}px`;
+    
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
-    // Runtime duration configuration tracking parameters
-let hoverStartTime = null;
-const DWELL_DELAY_MS = 2000; // 2 seconds threshold loop check limit
-let relayActivated = false;
+    
+    // Call the dwell function securely
+    checkRelayButtonDwell(avgX, avgY);
+}
 
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
     if (!btn || relayActivated) return;
 
-    // Fetch the real-time layout bounding box edges of the button container element
     const rect = btn.getBoundingClientRect();
-
-    // Check if the current average green cursor coordinate is overlapping inside the element rectangle
     const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
 
     if (isOverlapping) {
         if (!hoverStartTime) {
-            hoverStartTime = performance.now(); // Mark the starting millisecond timestamp entry
+            hoverStartTime = performance.now(); // Starts tracking the time seamlessly
             btn.classList.add('gaze-hover');
         }
 
@@ -144,34 +147,14 @@ function checkRelayButtonDwell(gx, gy) {
             btn.classList.remove('gaze-hover');
             btn.classList.add('triggered');
             btn.innerText = "💥 RELAY ACTIVE!";
-            log("Automation Event: Relay macro executed successfully via Eye Gaze Dwell Track!");
-            
-            // OPTIONAL: Insert your physical hardware webhook API calls or fetch queries here
-            // fetch('https://your-home-automation-ip/api/relay/toggle');
+            log("Automation Event: Relay executed!");
         }
     } else {
-        // Reset state properties immediately if your gaze look path slips outside the element container margins
+        // Reset state properties immediately if your gaze leaves the button container margins
         hoverStartTime = null;
         btn.classList.remove('gaze-hover');
         btn.innerText = "RELAY SWITCH [0%]";
     }
-}
-
-    checkRelayButtonDwell(avgX, avgY);
-}
-
-function checkRelayButtonDwell(gx, gy) {
-    const btn = document.getElementById('relay-button-target');
-    if (!btn || relayActivated) return;
-    const rect = btn.getBoundingClientRect();
-    const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
-    if (isOverlapping) {
-        if (!hoverStartTime) { hoverStartTime = performance.now(); btn.classList.add('gaze-hover'); }
-        const durationLooked = performance.now() - hoverStartTime;
-        const progressPercentage = Math.min(100, Math.floor((durationLooked / DWELL_DELAY_MS) * 100));
-        btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
-        if (durationLooked >= DWELL_DELAY_MS) { relayActivated = true; btn.classList.remove('gaze-hover'); btn.classList.add('triggered'); btn.innerText = "💥 RELAY ACTIVE!"; log("Automation Event: Relay executed!"); }
-    } else { hoverStartTime = null; btn.classList.remove('gaze-hover'); btn.innerText = "RELAY SWITCH [0%]"; }
 }
 
 function drawHeatmapLoop() {
@@ -179,8 +162,13 @@ function drawHeatmapLoop() {
     heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
     heatmapData.forEach(point => {
         let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
-        heatmapCtx.fillStyle = gradient; heatmapCtx.beginPath(); heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); heatmapCtx.fill();
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); 
+        gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); 
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
+        heatmapCtx.fillStyle = gradient; 
+        heatmapCtx.beginPath(); 
+        heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); 
+        heatmapCtx.fill();
     });
     requestAnimationFrame(drawHeatmapLoop);
 }
@@ -190,4 +178,5 @@ window.toggleSettings = toggleSettings;
 window.updateSettings = updateSettings;
 window.clearHeatmap = clearHeatmap;
 
-window.onload = () => { setTimeout(initSystem, 1000); };
+window.onload = () => { if (typeof initSystem === 'function') setTimeout(initSystem, 1000); };
+
