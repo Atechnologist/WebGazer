@@ -44,3 +44,37 @@ button:disabled {
 }
 #relay-button-target.gaze-hover { background-color: #ff9900; color: #111; box-shadow: 0 0 25px #ff9900; scale: 1.05; }
 #relay-button-target.triggered { background-color: #00ffcc; border-color: #00ffcc; color: #111; box-shadow: 0 0 35px #00ffcc; }
+/* Styling for the industrial automation relay tracking block element */
+#relay-button-target {
+    position: absolute;
+    bottom: 25%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    height: 90px;
+    background-color: rgba(51, 51, 51, 0.85);
+    border: 3px solid #ff9900;
+    border-radius: 12px;
+    color: #ff9900;
+    font-weight: bold;
+    text-align: center;
+    line-height: 90px;
+    font-size: 16px;
+    z-index: 10;
+    box-shadow: 0 0 15px rgba(255, 153, 0, 0.3);
+    transition: all 0.3s ease;
+    display: none; /* Stays hidden until four calibration dots complete processing */
+}
+#relay-button-target.gaze-hover {
+    background-color: #ff9900;
+    color: #111;
+    box-shadow: 0 0 25px #ff9900;
+    scale: 1.05;
+}
+#relay-button-target.triggered {
+    background-color: #00ffcc;
+    border-color: #00ffcc;
+    color: #111;
+    box-shadow: 0 0 35px #00ffcc;
+}
+
