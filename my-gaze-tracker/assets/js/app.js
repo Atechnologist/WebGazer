@@ -71,9 +71,22 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
-    if (calibrationStep < 4) { calibDot.style.display = 'block'; calibDot.style.left = `${screenTargets[calibrationStep].x}px`; calibDot.style.top = `${screenTargets[calibrationStep].y}px`; }
-    else { calibDot.style.display = 'none'; document.getElementById('ui-overlay').style.display = 'none'; isCalibrated = true; gazePointer.style.display = 'block'; document.getElementById('relay-button-target').style.display = 'block'; drawHeatmapLoop(); }
+    if (calibrationStep < 4) {
+        calibDot.style.display = 'block';
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
+    } else {
+        calibDot.style.display = 'none';
+        document.getElementById('ui-overlay').style.display = 'none';
+        isCalibrated = true;
+        gazePointer.style.display = 'block';
+        
+        // FIX: Display the relay switch interface target container as soon as calibration concludes!
+        document.getElementById('relay-button-target').style.display = 'block';
+        drawHeatmapLoop();
+    }
 }
+
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
@@ -100,6 +113,50 @@ function processGazeMapping(ex, ey) {
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
     gazePointer.style.left = `${avgX}px`; gazePointer.style.top = `${avgY}px`;
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
+    // Runtime duration configuration tracking parameters
+let hoverStartTime = null;
+const DWELL_DELAY_MS = 2000; // 2 seconds threshold loop check limit
+let relayActivated = false;
+
+function checkRelayButtonDwell(gx, gy) {
+    const btn = document.getElementById('relay-button-target');
+    if (!btn || relayActivated) return;
+
+    // Fetch the real-time layout bounding box edges of the button container element
+    const rect = btn.getBoundingClientRect();
+
+    // Check if the current average green cursor coordinate is overlapping inside the element rectangle
+    const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
+
+    if (isOverlapping) {
+        if (!hoverStartTime) {
+            hoverStartTime = performance.now(); // Mark the starting millisecond timestamp entry
+            btn.classList.add('gaze-hover');
+        }
+
+        const durationLooked = performance.now() - hoverStartTime;
+        const progressPercentage = Math.min(100, Math.floor((durationLooked / DWELL_DELAY_MS) * 100));
+        
+        btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
+
+        if (durationLooked >= DWELL_DELAY_MS) {
+            relayActivated = true;
+            btn.classList.remove('gaze-hover');
+            btn.classList.add('triggered');
+            btn.innerText = "💥 RELAY ACTIVE!";
+            log("Automation Event: Relay macro executed successfully via Eye Gaze Dwell Track!");
+            
+            // OPTIONAL: Insert your physical hardware webhook API calls or fetch queries here
+            // fetch('https://your-home-automation-ip/api/relay/toggle');
+        }
+    } else {
+        // Reset state properties immediately if your gaze look path slips outside the element container margins
+        hoverStartTime = null;
+        btn.classList.remove('gaze-hover');
+        btn.innerText = "RELAY SWITCH [0%]";
+    }
+}
+
     checkRelayButtonDwell(avgX, avgY);
 }
 
