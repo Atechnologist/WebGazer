@@ -169,26 +169,31 @@ window.addEventListener(triggerEvent, (e) => {
 
 function processGazeMapping(ex, ey) {
     const { tl, tr, bl, br } = eyeGrid;
+    
+    // Normalize coordinates vectors math matrix transformations
     const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
-
+    
+    // FIX: Explicitly target all 4 distinct array indices position blocks!
+    // screenTargets[0] = Top-Left, [1] = Top-Right, [2] = Bottom-Left, [3] = Bottom-Right
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;
-
+    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+    
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
-
+    
     const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
-
-    gazePointer.style.left = `${avgX}px`;
+    
+    gazePointer.style.left = `${avgX}px`; 
     gazePointer.style.top = `${avgY}px`;
-
+    
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
     checkRelayButtonDwell(avgX, avgY);
 }
+
 
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
