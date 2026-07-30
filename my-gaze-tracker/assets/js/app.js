@@ -10,16 +10,12 @@ const heatmapCtx = heatmapCanvas.getContext('2d');
 let detector = null, currentFeatures = null, calibrationStep = 0, isCalibrated = false;
 let smoothFrames = 6, invertX = false, heatmapData = []; 
 
+// Core persistent global state variables for our relay timer loop
 let hoverStartTime = null;
 let relayActivated = false;
 const DWELL_DELAY_MS = 2000;
 
-const screenTargets = [
-    { x: 40, y: 40 }, 
-    { x: window.innerWidth - 40, y: 40 }, 
-    { x: 40, y: window.innerHeight - 40 }, 
-    { x: window.innerWidth - 40, y: window.innerHeight - 40 }
-];
+const screenTargets = [{ x: 40, y: 40 }, { x: window.innerWidth - 40, y: 40 }, { x: 40, y: window.innerHeight - 40 }, { x: window.innerWidth - 40, y: window.innerHeight - 40 }];
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 const smoothingBuffer = [];
 
@@ -48,43 +44,52 @@ async function initSystem() {
     } catch (err) { log("Boot Error: " + err.message); statusText.innerText = "Setup blocked. Check device hardware settings."; console.error(err); }
 }
 
+// YOUR WORKING INFERENCE PROCESSOR BLOCK
 async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
         let videoTensor = null;
         try {
             videoTensor = tf.browser.fromPixels(videoElement);
             const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
-            
-            // FIX 1: Safely drill down past the parent array wrapper to catch the active face metrics matrix
+
             if (faces && faces.length > 0) {
-                const keypoints = faces[0].keypoints;
+                log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
+                
+                const keypoints = faces[0].scaledMesh || faces[0].keypoints;
                 
                 if (keypoints) {
-                    const outer = keypoints[33];  
-                    const inner = keypoints[133]; 
-                    const pupil = keypoints[468]; 
+                    const outer = keypoints[33];
+                    const inner = keypoints[133];
+                    const pupil = keypoints[468];
                     
                     if (outer && inner && pupil) {
-                        log(isCalibrated ? "Gaze tracking operational." : `Tracking active. Click calibration point ${calibrationStep + 1}/4`);
+                        const ox = typeof outer.x !== 'undefined' ? outer.x : outer[0];
+                        const oy = typeof outer.y !== 'undefined' ? outer.y : outer[1];
+                        const ix = typeof inner.x !== 'undefined' ? inner.x : inner[0];
+                        const iy = typeof inner.y !== 'undefined' ? inner.y : inner[1];
+                        const px = typeof pupil.x !== 'undefined' ? pupil.x : pupil[0];
+                        const py = typeof pupil.y !== 'undefined' ? pupil.y : pupil[1];
+
+                        const eyeCenterX = (ix + ox) / 2;
+                        const eyeCenterY = (iy + oy) / 2;
+                        const eyeWidth = Math.hypot(ox - ix, oy - iy);
                         
-                        const eyeCenterX = (inner.x + outer.x) / 2;
-                        const eyeCenterY = (inner.y + outer.y) / 2;
-                        const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
-                        let calculatedX = (pupil.x - eyeCenterX) / eyeWidth;
+                        let calculatedX = (px - eyeCenterX) / eyeWidth;
                         if (invertX) { calculatedX = -calculatedX; }
                         
-                        currentFeatures = { x: calculatedX, y: (pupil.y - eyeCenterY) / eyeWidth };
+                        currentFeatures = { x: calculatedX, y: (py - eyeCenterY) / eyeWidth };
                         if (isCalibrated) { processGazeMapping(currentFeatures.x, currentFeatures.y); }
                     }
                 }
-            } else { 
-                log("Searching for eyes / face context... (Align your face with the camera)"); 
-                currentFeatures = null;
+            } else {
+                log("Searching for eyes / face context... (No faces in frame)");
             }
-        } catch (e) { 
-            console.error(e);
-        } finally { 
-            if (videoTensor) { videoTensor.dispose(); } 
+        } catch (e) {
+            log("Frame Error: " + e.message);
+        } finally {
+            if (videoTensor) {
+                videoTensor.dispose();
+            }
         }
     }
     requestAnimationFrame(processFramesLoop);
@@ -103,32 +108,24 @@ function showNextCalibrationDot() {
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
-        // FIX: Inject the active operational styles onto our pre-rendered box!
+        // Add the activation ready class to unlock the embedded relay target element
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
             targetBtn.classList.add('active-ready');
             targetBtn.innerText = "RELAY SWITCH [0%]";
-            log("Gaze tracking active. Relay Switch container unlocked.");
         }
         drawHeatmapLoop(); 
     }
 }
 
-
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
     if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest?.('#settings-panel')) return;
-    
-    // If currentFeatures is missing because of the old indexing crash, this line blocked the tap!
-    if (!currentFeatures) {
-        log("Calibration Tap Skipped: Looking for face context. Center your head.");
-        return;
-    } 
+    if (!currentFeatures) return; 
 
     const keys = ['tl', 'tr', 'bl', 'br'];
     eyeGrid[keys[calibrationStep]] = { x: currentFeatures.x, y: currentFeatures.y };
-    
     calibrationStep++;
     showNextCalibrationDot();
 });
@@ -141,7 +138,7 @@ function processGazeMapping(ex, ey) {
     const v = Math.max(0, Math.min(1, ty));
     
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;
     
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
@@ -158,8 +155,7 @@ function processGazeMapping(ex, ey) {
 
 function checkRelayButtonDwell(gx, gy) {
     const btn = document.getElementById('relay-button-target');
-     if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
-    
+    if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
     
     const rect = btn.getBoundingClientRect();
     const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
@@ -184,4 +180,6 @@ function drawHeatmapLoop() {
     requestAnimationFrame(drawHeatmapLoop);
 }
 
-window.onload = () => { if (typeof initSystem === 'function') setTimeout(initSystem, 1000); };
+window.startCalibration = startCalibration;
+window.toggleSettings = toggleSettings;
+window.updateSettings = updateSettings;window.clearHeatmap = clearHeatmap;window.onload = () => { setTimeout(initSystem, 1000); };
