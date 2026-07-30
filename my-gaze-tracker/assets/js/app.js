@@ -166,18 +166,20 @@ window.addEventListener(triggerEvent, (e) => {
     calibrationStep++;
     showNextCalibrationDot();
 });
+// Global tracking filters for our high-performance capacitor dwell loop
+let currentGazeX = 0;
+let currentGazeY = 0;
+let dwellAccumulatorMs = 0; // The "charge" of our gaze capacitor
+let dwellTimerInterval = null; // Background loop thread handle
+const CAPACITOR_MAX_MS = 2000; // 2 seconds total target look duration
 
 function processGazeMapping(ex, ey) {
     const { tl, tr, bl, br } = eyeGrid;
-    
-    // Normalize coordinates vectors math matrix transformations
     const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
     
-    // FIX: Explicitly target all 4 distinct array indices position blocks!
-    // screenTargets[0] = Top-Left, [1] = Top-Right, [2] = Bottom-Left, [3] = Bottom-Right
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
     
@@ -191,30 +193,102 @@ function processGazeMapping(ex, ey) {
     gazePointer.style.top = `${avgY}px`;
     
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
-    checkRelayButtonDwell(avgX, avgY);
+
+    // FIX 1: Save coordinates to a global variable memory state instead of calculating layouts here!
+    currentGazeX = avgX;
+    currentGazeY = avgY;
 }
 
-
-function checkRelayButtonDwell(gx, gy) {
+// FIX 2: This function runs asynchronously on an independent 50ms interval loop.
+// This completely stops layout thrashing and prevents cursor tracking jitter!
+function runBackgroundDwellCheck() {
     const btn = document.getElementById('relay-button-target');
     if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
-    
+
     const rect = btn.getBoundingClientRect();
-    const isOverlapping = (gx >= rect.left && gx <= rect.right && gy >= rect.top && gy <= rect.bottom);
-    
+    // Check overlapping boundaries using our globally cached coordinates
+    const isOverlapping = (currentGazeX >= rect.left && currentGazeX <= rect.right && currentGazeY >= rect.top && currentGazeY <= rect.bottom);
+
+    const LOOP_INTERVAL_MS = 50; // Runs every 50ms
+
     if (isOverlapping) {
-        if (!hoverStartTime) { hoverStartTime = performance.now(); btn.classList.add('gaze-hover'); }
-        const durationLooked = performance.now() - hoverStartTime;
-        const progressPercentage = Math.min(100, Math.floor((durationLooked / DWELL_DELAY_MS) * 100));
-        btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
-        if (durationLooked >= DWELL_DELAY_MS) { 
-            relayActivated = true; 
-            btn.classList.remove('gaze-hover'); 
-            btn.classList.add('triggered'); 
-            btn.innerText = "💥 RELAY ACTIVE!"; 
-            log("Automation Event: Relay executed via dwell!"); 
+        btn.classList.add('gaze-hover');
+        // Charge the capacitor smoothly
+        dwellAccumulatorMs += LOOP_INTERVAL_MS;
+        
+        if (dwellAccumulatorMs >= CAPACITOR_MAX_MS) {
+            dwellAccumulatorMs = CAPACITOR_MAX_MS;
+            relayActivated = true;
+            btn.classList.remove('gaze-hover');
+            btn.classList.add('triggered');
+            btn.innerText = "💥 RELAY ACTIVE!";
+            log("Automation Event: Relay executed smoothly via Capacitor Dwell!");
+            clearInterval(dwellTimerInterval); // Clean up the interval thread safely
         }
-    } else { hoverStartTime = null; btn.classList.remove('gaze-hover'); btn.innerText = "RELAY SWITCH [0%]"; }
+    } else {
+        btn.classList.remove('gaze-hover');
+        // FIX 3: Leak/Drain the capacitor slowly instead of resetting instantly to 0% due to jitter noise!
+        dwellAccumulatorMs -= (LOOP_INTERVAL_MS * 1.5); // Drains slightly faster than it charges
+        if (dwellAccumulatorMs < 0) dwellAccumulatorMs = 0;
+    }
+
+    // Update the layout button percentage text accurately
+    if (!relayActivated) {
+        const progressPercentage = Math.floor((dwellAccumulatorMs / CAPACITOR_MAX_MS) * 100);
+        if (progressPercentage > 0) {
+            btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
+        } else {
+            btn.innerText = "RELAY SWITCH [0%]";
+        }
+    }
 }
 
-function drawHeatmapLoop() {if (!isCalibrated) return;heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);heatmapData.forEach(point => {let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)');gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');heatmapCtx.fillStyle = gradient;heatmapCtx.beginPath();heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);heatmapCtx.fill();});requestAnimationFrame(drawHeatmapLoop);}window.onload = () => { setTimeout(initSystem, 1000); };
+function showNextCalibrationDot() {
+    if (calibrationStep < 4) { 
+        calibDot.style.display = 'block'; 
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
+    } else { 
+        calibDot.style.display = 'none'; 
+        document.getElementById('ui-overlay').style.display = 'none'; 
+        isCalibrated = true; 
+        gazePointer.style.display = 'block'; 
+        
+        const targetBtn = document.getElementById('relay-button-target');
+        if (targetBtn) {
+            targetBtn.classList.add('active-ready');
+            targetBtn.innerText = "RELAY SWITCH [0%]";
+        }
+        
+        // FIX 4: Fire up the independent background loop interval right when calibration finishes!
+        if (!dwellTimerInterval) {
+            dwellTimerInterval = setInterval(runBackgroundDwellCheck, 50);
+        }
+        
+        drawHeatmapLoop(); 
+    }
+}
+
+function drawHeatmapLoop() {
+    if (!isCalibrated) return;
+    heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
+    heatmapData.forEach(point => {
+        let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); 
+        gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); 
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
+        heatmapCtx.fillStyle = gradient; 
+        heatmapCtx.beginPath(); 
+        heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); 
+        heatmapCtx.fill();
+    });
+    requestAnimationFrame(drawHeatmapLoop);
+}
+
+window.startCalibration = startCalibration;
+window.toggleSettings = toggleSettings;
+window.updateSettings = updateSettings;
+window.clearHeatmap = clearHeatmap;
+
+window.onload = () => { setTimeout(initSystem, 1000); };
+
