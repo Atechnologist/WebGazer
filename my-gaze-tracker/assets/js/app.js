@@ -8,43 +8,81 @@ const heatmapCanvas = document.getElementById('heatmap-canvas');
 const heatmapCtx = heatmapCanvas.getContext('2d');
 
 let detector = null, currentFeatures = null, calibrationStep = 0, isCalibrated = false;
-let smoothFrames = 6, invertX = false, heatmapData = []; 
+let smoothFrames = 6, invertX = false, heatmapData = [];
 
-// Core persistent global state variables for our relay timer loop
+// Persistent global timing parameters for the relay button dwell loop
 let hoverStartTime = null;
 let relayActivated = false;
 const DWELL_DELAY_MS = 2000;
 
-const screenTargets = [{ x: 40, y: 40 }, { x: window.innerWidth - 40, y: 40 }, { x: 40, y: window.innerHeight - 40 }, { x: window.innerWidth - 40, y: window.innerHeight - 40 }];
+const screenTargets = [
+    { x: 40, y: 40 },
+    { x: window.innerWidth - 40, y: 40 },
+    { x: 40, y: window.innerHeight - 40 },
+    { x: window.innerWidth - 40, y: window.innerHeight - 40 }
+];
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 const smoothingBuffer = [];
 
 function log(msg) { debugLog.innerText = "System Log: " + msg; }
+
+// On-screen console pipeline for advanced tracking mobile insights
+window.onerror = function (message, source, lineno, colno, error) {
+    log("Fatal Error: " + message + " (" + (source ? source.split('/').pop() : '') + ":" + lineno + ")");
+    return false;
+};
+
 function toggleSettings() { const panel = document.getElementById('settings-panel'); panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; }
 function updateSettings() { smoothFrames = parseInt(document.getElementById('smooth-range').value); document.getElementById('smooth-val').innerText = smoothFrames + " frames"; invertX = document.getElementById('invert-x-check').checked; }
 function clearHeatmap() { heatmapData = []; heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height); }
 function resizeCanvas() { heatmapCanvas.width = window.innerWidth; heatmapCanvas.height = window.innerHeight; }
-
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 async function initSystem() {
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') { log("Security Block: Camera streams require an HTTPS secure connection."); statusText.innerText = "Deployment Error: Switch page to HTTPS."; return; }
-    if (typeof tf === 'undefined' || typeof faceDetection === 'undefined') { log("Boot Error: Core browser scripts were blocked or timed out."); return; }
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        log("Security Block: Camera streams require an HTTPS secure connection.");
+        statusText.innerText = "Deployment Error: Switch page to HTTPS.";
+        return;
+    }
+    
+    // FIX 2: Corrected the lookups array statement mapping your faceLandmarksDetection tags
+    if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
+        log("Boot Error: Core browser scripts were blocked or timed out.");
+        return;
+    }
+
     try {
         log("Initializing graphics acceleration engine...");
         await tf.setBackend('webgl');
         await tf.ready();
+        log(`Active Hardware Backend: ${tf.getBackend()}`);
+
         log("Downloading target model architecture...");
-        detector = await faceDetection.createDetector(faceDetection.SupportedModels.MediaPipeFaceMesh, { runtime: 'tfjs', maxFaces: 1 });
+        detector = await faceLandmarksDetection.createDetector(
+            faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
+            { runtime: 'tfjs', refineLandmarks: true, maxFaces: 1 }
+        );
+
         log("Requesting frontend webcam video tokens...");
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
         videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => { log("AI processing framework live. Ready to calibrate."); statusText.innerText = "Hold your device steady"; startBtn.disabled = false; processFramesLoop(); };
-    } catch (err) { log("Boot Error: " + err.message); statusText.innerText = "Setup blocked. Check device hardware settings."; console.error(err); }
+        videoElement.onloadedmetadata = () => {
+            log("AI processing framework live. Ready to calibrate.");
+            statusText.innerText = "Hold your device steady";
+            startBtn.disabled = false;
+            processFramesLoop();
+        };
+    } catch (err) {
+        log("Boot Error: " + err.message);
+        statusText.innerText = "Setup blocked. Check device hardware settings.";
+        console.error(err);
+    }
 }
 
-// YOUR WORKING INFERENCE PROCESSOR BLOCK
 async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
         let videoTensor = null;
@@ -53,8 +91,7 @@ async function processFramesLoop() {
             const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
 
             if (faces && faces.length > 0) {
-                log(isCalibrated ? "Gaze tracking operational." : "Tracking active. Ready to calibrate.");
-                
+                log(isCalibrated ? "Gaze tracking operational." : `Tracking active. Click calibration point ${calibrationStep + 1}/4`);
                 const keypoints = faces[0].scaledMesh || faces[0].keypoints;
                 
                 if (keypoints) {
@@ -98,23 +135,23 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
-    if (calibrationStep < 4) { 
-        calibDot.style.display = 'block'; 
-        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
-        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
-    } else { 
-        calibDot.style.display = 'none'; 
-        document.getElementById('ui-overlay').style.display = 'none'; 
-        isCalibrated = true; 
-        gazePointer.style.display = 'block'; 
+    if (calibrationStep < 4) {
+        calibDot.style.display = 'block';
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
+    } else {
+        calibDot.style.display = 'none';
+        document.getElementById('ui-overlay').style.display = 'none';
+        isCalibrated = true;
+        gazePointer.style.display = 'block';
         
-        // Add the activation ready class to unlock the embedded relay target element
+        // Inject the active status class onto the pre-rendered grey menu button container
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
             targetBtn.classList.add('active-ready');
             targetBtn.innerText = "RELAY SWITCH [0%]";
         }
-        drawHeatmapLoop(); 
+        drawHeatmapLoop();
     }
 }
 
@@ -122,7 +159,7 @@ const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
     if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest?.('#settings-panel')) return;
-    if (!currentFeatures) return; 
+    if (!currentFeatures) return;
 
     const keys = ['tl', 'tr', 'bl', 'br'];
     eyeGrid[keys[calibrationStep]] = { x: currentFeatures.x, y: currentFeatures.y };
@@ -136,19 +173,19 @@ function processGazeMapping(ex, ey) {
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
-    
+
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets.y + u * v * screenTargets.y;
-    
+
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
-    
+
     const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
-    
-    gazePointer.style.left = `${avgX}px`; 
+
+    gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
-    
+
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
     checkRelayButtonDwell(avgX, avgY);
 }
@@ -165,21 +202,14 @@ function checkRelayButtonDwell(gx, gy) {
         const durationLooked = performance.now() - hoverStartTime;
         const progressPercentage = Math.min(100, Math.floor((durationLooked / DWELL_DELAY_MS) * 100));
         btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
-        if (durationLooked >= DWELL_DELAY_MS) { relayActivated = true; btn.classList.remove('gaze-hover'); btn.classList.add('triggered'); btn.innerText = "💥 RELAY ACTIVE!"; log("Automation Event: Relay executed!"); }
+        if (durationLooked >= DWELL_DELAY_MS) { 
+            relayActivated = true; 
+            btn.classList.remove('gaze-hover'); 
+            btn.classList.add('triggered'); 
+            btn.innerText = "💥 RELAY ACTIVE!"; 
+            log("Automation Event: Relay executed via dwell!"); 
+        }
     } else { hoverStartTime = null; btn.classList.remove('gaze-hover'); btn.innerText = "RELAY SWITCH [0%]"; }
 }
 
-function drawHeatmapLoop() {
-    if (!isCalibrated) return;
-    heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-    heatmapData.forEach(point => {
-        let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
-        heatmapCtx.fillStyle = gradient; heatmapCtx.beginPath(); heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); heatmapCtx.fill();
-    });
-    requestAnimationFrame(drawHeatmapLoop);
-}
-
-window.startCalibration = startCalibration;
-window.toggleSettings = toggleSettings;
-window.updateSettings = updateSettings;window.clearHeatmap = clearHeatmap;window.onload = () => { setTimeout(initSystem, 1000); };
+function drawHeatmapLoop() {if (!isCalibrated) return;heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);heatmapData.forEach(point => {let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)');gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');heatmapCtx.fillStyle = gradient;heatmapCtx.beginPath();heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);heatmapCtx.fill();});requestAnimationFrame(drawHeatmapLoop);}window.onload = () => { setTimeout(initSystem, 1000); };
