@@ -1,0 +1,58 @@
+name: Compile WebGazer and Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-compile:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Isolate and Package Staging Assets
+        run: |
+          # 1. Create a pristine production staging area
+          mkdir -p _site
+          mkdir -p _site/assets/css
+          mkdir -p _site/assets/js
+
+          # 2. Extract and lift files out of your subfolder into the root server staging view
+          cp my-gaze-tracker/index.html _site/
+          
+          if [ -d "my-gaze-tracker/assets/css" ] && [ "$(ls -A my-gaze-tracker/assets/css)" ]; then 
+            cp -r my-gaze-tracker/assets/css/* _site/assets/css/
+          fi
+          
+          if [ -d "my-gaze-tracker/assets/js" ] && [ "$(ls -A my-gaze-tracker/assets/js)" ]; then 
+            cp -r my-gaze-tracker/assets/js/* _site/assets/js/
+          fi
+
+          echo "=== PRODUCTION SITE ASSET INVENTORY VERIFICATION ==="
+          ls -R _site
+
+      - name: Upload Static Website Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: Deploy to Live Web URL
+        id: deployment
+        uses: actions/deploy-pages@v4
