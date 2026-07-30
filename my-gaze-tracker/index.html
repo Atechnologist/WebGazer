@@ -5,14 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Mobile Gaze Tracker - Modular Build</title>
     
-    <!-- FIX 1: Restored Google's official, self-contained, high-speed unified AI Edge Vision CDNs -->
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
-    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <!-- FIX 1: Restored your exact, working TensorFlow.js bundle script configurations -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection@1.0.2/dist/face-detection.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js"></script> 
 
-    <!-- Cache-Busted Links Mapping Layout Modules -->
-    <link rel="stylesheet" href="./assets/css/style.css?v=engine_restore">
+    <!-- Link Mapping to Separate Stylesheet Layout Modules -->
+    <link rel="stylesheet" href="assets/css/style.css?v=exact_match">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -49,8 +48,8 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- Cache-Busted Link to Separate Tracker Application Logic -->
-    <script src="./assets/js/app.js?v=engine_restore"></script>
+    <!-- Link to Separate Tracker Application Logic -->
+    <script src="assets/js/app.js?v=exact_match"></script>
 
 </body>
 </html>
