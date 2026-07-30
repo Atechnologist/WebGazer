@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Embedded Relay BuildV1</title>
+    <title>Mobile Gaze Tracker - Modular Build</title>
     
-    <!-- TensorFlow & Face Detection Core CDNs -->
-    <script src="https://cloudflare.com" crossorigin="anonymous"></script>
+    <!-- FIX 1: Restored Google's official, self-contained, high-speed unified AI Edge Vision CDNs -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
     <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
 
-    <!-- FIX 1: Removed dot separators to force precise repository subfolder tracking -->
-    <link rel="stylesheet" href="assets/css/style.css?v=subfolder_patch">
+    <!-- Cache-Busted Links Mapping Layout Modules -->
+    <link rel="stylesheet" href="./assets/css/style.css?v=engine_restore">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -36,7 +38,7 @@
             <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; margin-bottom:15px;">Clear Heatmap</button>
         </div>
         
-        <!-- Embedded Relay target block element V1 -->
+        <!-- Embedded Relay target block element inside working menu layout -->
         <div class="control-group">
             <div id="relay-button-target">RELAY SWITCH [0%]</div>
         </div>
@@ -47,8 +49,8 @@
         <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
     </div>
 
-    <!-- FIX 2: Updated the script source path to lock onto the deep repository folder layout -->
-    <script src="assets/js/app.js?v=subfolder_patch"></script>
+    <!-- Cache-Busted Link to Separate Tracker Application Logic -->
+    <script src="./assets/js/app.js?v=engine_restore"></script>
 
 </body>
 </html>
