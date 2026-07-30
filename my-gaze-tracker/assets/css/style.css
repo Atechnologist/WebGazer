@@ -58,23 +58,50 @@ button:disabled {
     color: #545454 !important;
 }
 
-/* Active ready state class added dynamically via JavaScript */
+#relay-button-target {
+    /* Forced direct fixed positioning to lift it out of the menu tree layout blocks */
+    position: fixed;
+    top: 15%; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 240px; 
+    height: 80px;
+    border-radius: 12px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 74px; 
+    font-size: 16px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    
+    /* Make visible immediately on load, styled as waiting/grayed-out until calibrated */
+    display: block !important;
+    visibility: visible !important;
+    z-index: 9999 !important; /* Forces it safely above all canvases and videos */
+    background-color: rgba(30, 30, 30, 0.4) !important;
+    border: 3px dashed #555 !important;
+    color: #555 !important;
+}
+
+/* Active ready state class added dynamically via JavaScript at the end of tap loops */
 #relay-button-target.active-ready {
-    background-color: rgba(255, 153, 0, 0.1) !important;
-    border: 2px solid #ff9900 !important;
+    background-color: rgba(30, 30, 30, 0.95) !important;
+    border: 3px solid #ff9900 !important;
     color: #ff9900 !important;
-    box-shadow: 0 0 10px rgba(255, 153, 0, 0.2);
+    box-shadow: 0 0 25px rgba(255, 153, 0, 0.6);
 }
 
 #relay-button-target.gaze-hover {
     background-color: #ff9900 !important;
     color: #111 !important;
-    box-shadow: 0 0 20px #ff9900;
+    box-shadow: 0 0 35px #ff9900;
+    transform: translateX(-50%) scale(1.05);
 }
 
 #relay-button-target.triggered {
     background-color: #00ffcc !important;
     border-color: #00ffcc !important;
     color: #111 !important;
-    box-shadow: 0 0 25px #00ffcc;
+    box-shadow: 0 0 45px #00ffcc;
 }
+
