@@ -10,17 +10,22 @@ const heatmapCtx = heatmapCanvas.getContext('2d');
 let detector = null, currentFeatures = null, calibrationStep = 0, isCalibrated = false;
 let smoothFrames = 6, invertX = false, heatmapData = [];
 
-// Persistent global timing parameters for the relay button dwell loop
+// High-performance background capacitor tracking states
+let currentGazeX = 0;
+let currentGazeY = 0;
+let dwellAccumulatorMs = 0;
+let dwellTimerInterval = null;
+const CAPACITOR_MAX_MS = 2000;
 let hoverStartTime = null;
 let relayActivated = false;
-const DWELL_DELAY_MS = 2000;
 
-// 1. Initialize screen targets as flexible variables instead of static, hardcoded numbers
+// 1. Safe 5-point layout coordinate placeholder array mapping
 let screenTargets = [
-    { x: 0, y: 0 },
-    { x: 0, y: 0 },
-    { x: 0, y: 0 },
-    { x: 0, y: 0 }
+    { x: 0, y: 0 }, // Center
+    { x: 0, y: 0 }, // Top Left
+    { x: 0, y: 0 }, // Top Right
+    { x: 0, y: 0 }, // Bottom Left
+    { x: 0, y: 0 }  // Bottom Right
 ];
 
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
@@ -28,7 +33,7 @@ const smoothingBuffer = [];
 
 function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
-// On-screen console pipeline for advanced tracking mobile insights
+// On-screen mobile exception reporting engine
 window.onerror = function (message, source, lineno, colno, error) {
     log("Fatal Error: " + message + " (" + (source ? source.split('/').pop() : '') + ":" + lineno + ")");
     return false;
@@ -38,7 +43,26 @@ function toggleSettings() { const panel = document.getElementById('settings-pane
 function updateSettings() { smoothFrames = parseInt(document.getElementById('smooth-range').value); document.getElementById('smooth-val').innerText = smoothFrames + " frames"; invertX = document.getElementById('invert-x-check').checked; }
 function clearHeatmap() { heatmapData = []; heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height); }
 
+function resizeCanvas() {
+    heatmapCanvas.width = window.innerWidth;
+    heatmapCanvas.height = window.innerHeight;
 
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const boxWidth = window.innerWidth * 0.40;
+    const boxHeight = window.innerHeight * 0.40;
+
+    // 2. Safely populate layout coordinates when browser window geometry builds
+    screenTargets = [
+        { x: centerX, y: centerY },                                   // 1st Dot: Center Anchor
+        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 2nd Dot: Top Left
+        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 3rd Dot: Top Right
+        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // 4th Dot: Bottom Left
+        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // 5th Dot: Bottom Right
+    ];
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
 async function initSystem() {
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -46,13 +70,10 @@ async function initSystem() {
         statusText.innerText = "Deployment Error: Switch page to HTTPS.";
         return;
     }
-    
-    // FIX 2: Corrected the lookups array statement mapping your faceLandmarksDetection tags
     if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
         log("Boot Error: Core browser scripts were blocked or timed out.");
         return;
     }
-
     try {
         log("Initializing graphics acceleration engine...");
         await tf.setBackend('webgl');
@@ -84,7 +105,6 @@ async function initSystem() {
     }
 }
 
-
 async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
         let videoTensor = null;
@@ -93,7 +113,7 @@ async function processFramesLoop() {
             const faces = await detector.estimateFaces(videoTensor, { flipHorizontal: false });
 
             if (faces && faces.length > 0) {
-                log(isCalibrated ? "Gaze tracking operational." : `Tracking active. Click calibration point ${calibrationStep + 1}/4`);
+                log(isCalibrated ? "Gaze tracking operational." : `Tracking active. Ready for calibration point ${calibrationStep + 1}/5`);
                 const keypoints = faces[0].scaledMesh || faces[0].keypoints;
                 
                 if (keypoints) {
@@ -126,9 +146,7 @@ async function processFramesLoop() {
         } catch (e) {
             log("Frame Error: " + e.message);
         } finally {
-            if (videoTensor) {
-                videoTensor.dispose();
-            }
+            if (videoTensor) { videoTensor.dispose(); }
         }
     }
     requestAnimationFrame(processFramesLoop);
@@ -136,62 +154,19 @@ async function processFramesLoop() {
 
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
-// 1. Expanded the array structure block to accommodate 5 sequential calibration points
-let screenTargets = [
-    { x: 0, y: 0 }, // Point 1: Absolute Center Anchor 
-    { x: 0, y: 0 }, // Point 2: Top Left
-    { x: 0, y: 0 }, // Point 3: Top Right
-    { x: 0, y: 0 }, // Point 4: Bottom Left
-    { x: 0, y: 0 }  // Point 5: Bottom Right
-];
-
-let eyeGrid = { tl: null, tr: null, bl: null, br: null };
-const smoothingBuffer = [];
-
-function resizeCanvas() {
-    heatmapCanvas.width = window.innerWidth;
-    heatmapCanvas.height = window.innerHeight;
-
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    
-    // Confining our peripheral bounding box tightly to a comfortable 40% viewport zone
-    const boxWidth = window.innerWidth * 0.40;
-    const boxHeight = window.innerHeight * 0.40;
-
-    // 2. FIX: Re-mapped the indices layout coordinates array completely. 
-    // Target 0 is now explicitly set to the exact mathematical center of your screen glass!
-    screenTargets = [
-        { x: centerX, y: centerY },                                   // 1st Dot: Absolute Center Anchor
-        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 2nd Dot: Top Left
-        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 3rd Dot: Top Right
-        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // 4th Dot: Bottom Left
-        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // 5th Dot: Bottom Right
-    ];
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
 function showNextCalibrationDot() {
-    // 3. FIX: Raised the sequence collection upper ceiling limit check from 4 up to 5!
-    if (calibrationStep < 5) { 
-        calibDot.style.display = 'block'; 
-        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
-        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
-        
-        // Update the log so you know exactly which coordinate point step you are processing
-        log(`Calibration active: Stare at target ${calibrationStep + 1} of 5.`);
-    } else { 
-        // 5th final tap has successfully finished processing! Kill tracking overlays safely
-        calibDot.style.display = 'none'; 
-        document.getElementById('ui-overlay').style.display = 'none'; 
-        isCalibrated = true; 
-        gazePointer.style.display = 'block'; 
+    if (calibrationStep < 5) {
+        calibDot.style.display = 'block';
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
+    } else {
+        calibDot.style.display = 'none';
+        document.getElementById('ui-overlay').style.display = 'none';
+        isCalibrated = true;
+        gazePointer.style.display = 'block';
         
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
-            targetBtn.style.setProperty('display', 'block', 'important');
-            targetBtn.style.visibility = 'visible';
             targetBtn.classList.add('active-ready');
             targetBtn.innerText = "🔄 LOGGING HEATMAP...";
         }
@@ -199,19 +174,17 @@ function showNextCalibrationDot() {
         if (!dwellTimerInterval) {
             dwellTimerInterval = setInterval(runBackgroundDwellCheck, 50);
         }
-        drawHeatmapLoop(); 
+        drawHeatmapLoop();
     }
 }
 
-// 4. Update the event window click tap listener mapping keys indices blocks
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
     if (calibrationStep >= 5 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest?.('#settings-panel')) return;
-    if (!currentFeatures) return; 
+    if (!currentFeatures) return;
 
-    // Point 0 (Center Anchor) functions as our baseline feature mapping calibration lock.
-    // Points 1, 2, 3, 4 map directly out to your corners dictionary keys layout profiles:
+    // First tap locks center anchor. The 4 corner calibration points map keys index 1,2,3,4 cleanly
     if (calibrationStep > 0) {
         const keys = ['tl', 'tr', 'bl', 'br'];
         eyeGrid[keys[calibrationStep - 1]] = { x: currentFeatures.x, y: currentFeatures.y };
@@ -221,179 +194,26 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
-
-
-const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
-window.addEventListener(triggerEvent, (e) => {
-    if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
-    if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest?.('#settings-panel')) return;
-    if (!currentFeatures) return;
-
-    const keys = ['tl', 'tr', 'bl', 'br'];
-    eyeGrid[keys[calibrationStep]] = { x: currentFeatures.x, y: currentFeatures.y };
-    calibrationStep++;
-    showNextCalibrationDot();
-});
-// Global tracking filters for our high-performance capacitor dwell loop
-let currentGazeX = 0;
-let currentGazeY = 0;
-let dwellAccumulatorMs = 0; // The "charge" of our gaze capacitor
-let dwellTimerInterval = null; // Background loop thread handle
-const CAPACITOR_MAX_MS = 2000; // 2 seconds total target look duration
-
-
-
-// FIX 2: This function runs asynchronously on an independent 50ms interval loop.
-// This completely stops layout thrashing and prevents cursor tracking jitter!
-function runBackgroundDwellCheck() {
-    const btn = document.getElementById('relay-button-target');
-    if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
-
-    const rect = btn.getBoundingClientRect();
-    // Check overlapping boundaries using our globally cached coordinates
-    const isOverlapping = (currentGazeX >= rect.left && currentGazeX <= rect.right && currentGazeY >= rect.top && currentGazeY <= rect.bottom);
-
-    const LOOP_INTERVAL_MS = 50; // Runs every 50ms
-
-    if (isOverlapping) {
-        btn.classList.add('gaze-hover');
-        // Charge the capacitor smoothly
-        dwellAccumulatorMs += LOOP_INTERVAL_MS;
-        
-        if (dwellAccumulatorMs >= CAPACITOR_MAX_MS) {
-            dwellAccumulatorMs = CAPACITOR_MAX_MS;
-            relayActivated = true;
-            btn.classList.remove('gaze-hover');
-            btn.classList.add('triggered');
-            btn.innerText = "💥 RELAY ACTIVE!";
-            log("Automation Event: Relay executed smoothly via Capacitor Dwell!");
-            clearInterval(dwellTimerInterval); // Clean up the interval thread safely
-        }
-    } else {
-        btn.classList.remove('gaze-hover');
-        // FIX 3: Leak/Drain the capacitor slowly instead of resetting instantly to 0% due to jitter noise!
-        dwellAccumulatorMs -= (LOOP_INTERVAL_MS * 1.5); // Drains slightly faster than it charges
-        if (dwellAccumulatorMs < 0) dwellAccumulatorMs = 0;
-    }
-
-    // Update the layout button percentage text accurately
-    if (!relayActivated) {
-        const progressPercentage = Math.floor((dwellAccumulatorMs / CAPACITOR_MAX_MS) * 100);
-        if (progressPercentage > 0) {
-            btn.innerText = `TRIGGERING... [${progressPercentage}%]`;
-        } else {
-            btn.innerText = "RELAY SWITCH [0%]";
-        }
-    }
-}
-
-// New configuration variables for the continuous Heatmap Gravity Well
-let trackingAnalysisBuffer = [];
-const RUNNING_WINDOW_SIZE = 90; // Tracks the center of mass over the last ~3 seconds of looking
-let dynamicOffsetCalibrated = false;
-
-function showNextCalibrationDot() {
-    // FIX 1: Enforce a strict validation check to ensure all 4 points process completely
-    if (calibrationStep < 4) { 
-        calibDot.style.display = 'block'; 
-        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
-        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
-    } else { 
-        calibDot.style.display = 'none'; 
-        document.getElementById('ui-overlay').style.display = 'none'; 
-        isCalibrated = true; 
-        gazePointer.style.display = 'block'; 
-        
-        const targetBtn = document.getElementById('relay-button-target');
-        if (targetBtn) {
-            targetBtn.style.setProperty('display', 'block', 'important');
-            targetBtn.style.visibility = 'visible';
-            targetBtn.classList.add('active-ready');
-            targetBtn.innerText = "🔄 LOGGING HEATMAP...";
-        }
-        
-        if (!dwellTimerInterval) {
-            dwellTimerInterval = setInterval(runBackgroundDwellCheck, 50);
-        }
-        drawHeatmapLoop(); 
-    }
-}
-
 function processGazeMapping(ex, ey) {
     const { tl, tr, bl, br } = eyeGrid;
+    if (!tl || !tr || !bl || !br) return; // FIX 3: Safety check stops early array crashes during startup phase loops
+
     const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
-    
-    const x0 = screenTargets[0].x, x1 = screenTargets[1].x, x2 = screenTargets[2].x, x3 = screenTargets[3].x;
-    const y0 = screenTargets[0].y, y1 = screenTargets[1].y, y2 = screenTargets[2].y, y3 = screenTargets[3].y;
 
-    let targetX = (1 - u) * (1 - v) * x0 + u * (1 - v) * x1 + (1 - u) * v * x2 + u * v * x3;
-    let targetY = (1 - u) * (1 - v) * y0 + u * (1 - v) * y1 + (1 - u) * v * y2 + u * v * y3;
-    
+    // FIX 4: Fixed all target selector indices mappings cleanly (Restoring matrix pointers 1, 2, 3, 4)
+    let targetX = (1 - u) * (1 - v) * screenTargets[1].x + u * (1 - v) * screenTargets[2].x + (1 - u) * v * screenTargets[3].x + u * v * screenTargets[4].x;
+    let targetY = (1 - u) * (1 - v) * screenTargets[1].y + u * (1 - v) * screenTargets[2].y + (1 - u) * v * screenTargets[3].y + u * v * screenTargets[4].y;
+
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
-    
+
     const avgX = smoothingBuffer.reduce((sum, pt) => sum + pt.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, pt) => sum + pt.y, 0) / smoothingBuffer.length;
-    
-    gazePointer.style.left = `${avgX}px`; 
+
+    gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
-    
-    heatmapData.push({ x: avgX, y: avgY, weight: 1 });
-    
-    // FIX 2: Continuous Background Heatmap Tracking
-    if (isCalibrated) {
-        trackingAnalysisBuffer.push({ x: avgX, y: avgY });
-        
-        // Keep a moving window of recent gaze history
-        if (trackingAnalysisBuffer.length > RUNNING_WINDOW_SIZE) {
-            trackingAnalysisBuffer.shift();
-        }
-        
-        // Continuously compute the center of mass of your highest accuracy zone
-        const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
-        const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
-        
-        const btn = document.getElementById('relay-button-target');
-        if (btn && !relayActivated) {
-            // Smoothly slide the button to follow your densest look focus coordinates
-            btn.style.left = `${computedUserCenterX}px`;
-            btn.style.top = `${computedUserCenterY}px`;
-            
-            // Once the buffer has enough initial data, start updating the look timer progress percentages
-            if (trackingAnalysisBuffer.length >= 30) {
-                dynamicOffsetCalibrated = true;
-            }
-        }
-    }
 
-    currentGazeX = avgX;
-    currentGazeY = avgY;
-}
-
-
-function drawHeatmapLoop() {
-    if (!isCalibrated) return;
-    heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
-    heatmapData.forEach(point => {
-        let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)'); 
-        gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)'); 
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');          
-        heatmapCtx.fillStyle = gradient; 
-        heatmapCtx.beginPath(); 
-        heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2); 
-        heatmapCtx.fill();
-    });
-    requestAnimationFrame(drawHeatmapLoop);
-}
-
-window.startCalibration = startCalibration;
-window.toggleSettings = toggleSettings;
-window.updateSettings = updateSettings;
-window.clearHeatmap = clearHeatmap;
-
-window.onload = () => { setTimeout(initSystem, 1000); };
-
+heatmapData.push({ x: avgX, y: avgY, weight: 1 });// Continuous dynamic gravity well logic mapping heatmapslet trackingAnalysisBuffer = heatmapData.slice(-90); // Use the last 90 frames (~3 seconds)if (trackingAnalysisBuffer.length >= 30) {const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;const btn = document.getElementById('relay-button-target');if (btn && !relayActivated) {btn.style.left = ${computedUserCenterX}px;btn.style.top = ${computedUserCenterY}px;dynamicOffsetCalibrated = true;}}currentGazeX = avgX;currentGazeY = avgY;}function runBackgroundDwellCheck() {const btn = document.getElementById('relay-button-target');if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;const rect = btn.getBoundingClientRect();const isOverlapping = (currentGazeX >= rect.left && currentGazeX <= rect.right && currentGazeY >= rect.top && currentGazeY <= rect.bottom);const LOOP_INTERVAL_MS = 50;if (isOverlapping && dynamicOffsetCalibrated) {btn.classList.add('gaze-hover');dwellAccumulatorMs += LOOP_INTERVAL_MS;if (dwellAccumulatorMs >= CAPACITOR_MAX_MS) {dwellAccumulatorMs = CAPACITOR_MAX_MS;relayActivated = true;btn.classList.remove('gaze-hover');btn.classList.add('triggered');btn.innerText = "💥 RELAY ACTIVE!";log("Automation Event: Relay executed smoothly via Gaze Focus!");setTimeout(() => {dwellAccumulatorMs = 0;relayActivated = false;btn.classList.remove('triggered');btn.innerText = "RELAY SWITCH [0%]";log("Tracker reset complete. Ready for next loop.");}, 2500);}} else {btn.classList.remove('gaze-hover');dwellAccumulatorMs -= (LOOP_INTERVAL_MS * 1.5);if (dwellAccumulatorMs < 0) dwellAccumulatorMs = 0;}if (!relayActivated) {if (!dynamicOffsetCalibrated) {btn.innerText = "🔄 ALIGNING ZONE...";} else {const progressPercentage = Math.floor((dwellAccumulatorMs / CAPACITOR_MAX_MS) * 100);btn.innerText = progressPercentage > 0 ? TRIGGERING... [${progressPercentage}%] : "RELAY SWITCH [0%]";}}}function drawHeatmapLoop() {if (!isCalibrated) return;heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);heatmapData.forEach(point => {let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)');gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');heatmapCtx.fillStyle = gradient;heatmapCtx.beginPath();heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);heatmapCtx.fill();});requestAnimationFrame(drawHeatmapLoop);}window.onload = () => { setTimeout(initSystem, 1000); };
