@@ -14,7 +14,7 @@ const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
 // Core Architecture Properties
-let detector = null;
+let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
@@ -64,26 +64,23 @@ window.clearHeatmap = function() {
 // Initialisation Pipeline Routine Execution
 async function initSystem() {
     try {
-        // Match width and height parameters against active display environment boundaries
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        log("Evaluating TensorFlow script stack deployment...");
-        if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
-            throw new Error("Core TensorFlow modules blocked or failed CDN download pipelines.");
+        log("Evaluating legacy TensorFlow engine deployment...");
+        if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
+            throw new Error("Core script files blocked by network rules.");
         }
         
         log("Booting hardware web acceleration backend...");
         await tf.ready();
+        log(`Active Engine Backend: ${tf.getBackend()}`);
         
-        log("Compiling MediaPipe Face Mesh neural pattern matrix...");
-        // Loads the updated high-accuracy faceMesh model framework via global scopes
-        detector = await faceLandmarksDetection.createDetector(
-            faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh, 
-            { runtime: 'mediapipe', solutionPath: 'https://jsdelivr.net', maxFaces: 1 }
-        );
+        log("Downloading neural face mesh patterns...");
+        // Use the native, reliable legacy facemesh API structure
+        model = await facemesh.load({ maxFaces: 1 });
         
-        log("Connecting to video capture stream pipeline...");
+        log("Connecting to front video stream feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -91,49 +88,49 @@ async function initSystem() {
         videoElement.srcObject = stream;
         
         videoElement.onloadedmetadata = () => {
-            log("Hardware channels operational. Environment verified.");
+            log("Camera pipeline active. Application verified.");
             statusText.innerText = "Hold your tablet or phone steady";
             startBtn.disabled = false;
             trackFrameLoop();
         };
     } catch (err) {
-        log("Fatal Error: " + err.message);
-        statusText.innerText = "Setup stalled. Ensure page runs via secure HTTPS pipeline.";
+        log("Fatal Boot Error: " + err.message);
+        statusText.innerText = "Setup stalled. Ensure page runs via secure HTTPS link.";
         console.error(err);
     }
 }
 
 // Processing Execution Tracking Context Frames Loop
 async function trackFrameLoop() {
-    if (detector && videoElement.readyState >= 2) {
+    if (model && videoElement.readyState >= 2) {
         try {
-            const faces = await detector.estimateFaces(videoElement, { flipHorizontal: false });
+            const predictions = await model.estimateFaces(videoElement);
             
-            if (faces.length === 0) {
-                log("Searching for tracking profile landmarks context...");
+            if (predictions.length === 0) {
+                log("Searching for tracking profile context...");
             } else {
-                // MediaPipe Keypoint Index Parsing Maps: 
-                // 33 = Left eye outer corner, 133 = Left eye inner corner, 468 = Pupil/Iris center point
-                const keypoints = faces[0].keypoints;
-                const outer = keypoints[33]; 
-                const inner = keypoints[133];
-                const iris = keypoints[468]; 
+                // Legacy Facemesh returns points inside the '.scaledMesh' array structure directly
+                const mesh = predictions[0].scaledMesh;
+                
+                // Stable fallback landmark matrices (indices 33, 133, 159)
+                const outer = mesh[33]; 
+                const inner = mesh[133];
+                const iris = mesh[159]; 
 
                 if (outer && inner && iris) {
-                    const eyeCenterX = (inner.x + outer.x) / 2;
-                    const eyeCenterY = (inner.y + outer.y) / 2;
-                    const eyeWidth = Math.hypot(outer.x - inner.x, outer.y - inner.y);
+                    const eyeCenterX = (inner[0] + outer[0]) / 2;
+                    const eyeCenterY = (inner[1] + outer[1]) / 2;
+                    const eyeWidth = Math.hypot(outer[0] - inner[0], outer[1] - inner[1]);
                     
-                    // Isolate normalized mathematical metrics representing gaze vector offsets
                     currentFeatures = [
-                        (iris.x - eyeCenterX) / eyeWidth,
-                        (iris.y - eyeCenterY) / eyeWidth
+                        (iris[0] - eyeCenterX) / eyeWidth,
+                        (iris[1] - eyeCenterY) / eyeWidth
                     ];
 
                     if (isCalibrated) {
                         processGazeMapping(currentFeatures[0], currentFeatures[1]);
                     } else {
-                        log("Tracking active. Ready for point initialization mapping calibration.");
+                        log("Tracking operational. Ready to calibrate.");
                     }
                 }
             }
@@ -145,7 +142,7 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    if (event) event.stopPropagation(); // FIXED: Blocks button click event bubbling down to first target tap!
+    if (event) event.stopPropagation(); // Blocks button event bubbling down to first dot
     
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
@@ -159,7 +156,7 @@ function showNextCalibrationDot() {
         calibDot.style.display = 'block';
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-        log(`Displaying dot ${calibrationStep + 1} for positioning calibration loop.`);
+        log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
     } else {
         calibDot.style.display = 'none';
         document.getElementById('ui-overlay').style.display = 'none';
@@ -188,11 +185,9 @@ window.addEventListener(triggerEvent, (e) => {
 function processGazeMapping(ex, ey) {
     const { tl, tr, bl, br } = eyeGrid;
 
-    // Linear mapping calculations across interpolation points matrix
     let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
 
-    // Apply X-Axis Inversion constraint toggles directly if selected inside properties layout
     if (invertX) {
         tx = 1 - tx;
     }
@@ -204,29 +199,23 @@ function processGazeMapping(ex, ey) {
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
-    // Add calculations into tracking buffer array
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothingFrames) {
         smoothingBuffer.shift();
     }
 
-    // Process average results extracting smooth pointer rendering updates
     const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
     const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
 
-    // Update pointer element tracking parameters on view layers
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // Process and draw the alpha heatmap footprints overlay track
     renderHeatmapFootprint(avgX, avgY);
-
-    // Evaluate Relay Interactivity Trigger collision states
     checkRelayActivation(avgX, avgY);
 }
 
 function renderHeatmapFootprint(x, y) {
-    ctx.fillStyle = 'rgba(255, 51, 102, 0.04)'; // Subtle alpha value to allow blending build effects
+    ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
     ctx.arc(x, y, 35, 0, 2 * Math.PI);
     ctx.fill();
@@ -235,7 +224,6 @@ function renderHeatmapFootprint(x, y) {
 function checkRelayActivation(gazeX, gazeY) {
     const relayRect = relayTarget.getBoundingClientRect();
     
-    // Check if the current gaze vectors fall inside the target button borders
     const isGazing = (
         gazeX >= relayRect.left &&
         gazeX <= relayRect.right &&
@@ -254,7 +242,6 @@ function checkRelayActivation(gazeX, gazeY) {
     }
 }
 
-// Delayed initialization setup execution mapping routines on window initialization context
 window.onload = () => {
     setTimeout(initSystem, 1000);
 };
