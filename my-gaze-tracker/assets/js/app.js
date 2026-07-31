@@ -4,28 +4,20 @@ const gazePointer = document.getElementById('gaze-pointer');
 const statusText = document.getElementById('status-text');
 const startBtn = document.getElementById('start-btn');
 const debugLog = document.getElementById('debug-console');
-const heatmapCanvas = document.getElementById('heatmap-canvas');
-const heatmapCtx = heatmapCanvas.getContext('2d');
 
-let detector = null, currentFeatures = null, calibrationStep = 0, isCalibrated = false;
-let smoothFrames = 6, invertX = false, heatmapData = [];
+let calibrationStep = 0;
+let isCalibrated = false;
 
-// High-performance background capacitor tracking states
-let currentGazeX = 0;
-let currentGazeY = 0;
-let dwellAccumulatorMs = 0;
-let dwellTimerInterval = null;
-const CAPACITOR_MAX_MS = 2000;
-let hoverStartTime = null;
-let relayActivated = false;
-
-// Dynamic percentage-based layout: places dots perfectly relative to any screen size
+// FIX: Declare the dynamic coordinates directly during the initial variable assignment
 const screenTargets = [
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left (15% in)
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left (15% inset)
     { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
     { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
     { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
 ];
+
+function log(msg) { debugLog.innerText = "System Log: " + msg; }
+
 
 
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
