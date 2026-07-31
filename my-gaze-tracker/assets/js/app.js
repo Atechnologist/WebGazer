@@ -15,12 +15,14 @@ let hoverStartTime = null;
 let relayActivated = false;
 const DWELL_DELAY_MS = 2000;
 
-const screenTargets = [
-    { x: 40, y: 40 },
-    { x: window.innerWidth - 40, y: 40 },
-    { x: 40, y: window.innerHeight - 40 },
-    { x: window.innerWidth - 40, y: window.innerHeight - 40 }
+// 1. Initialize screen targets as flexible variables instead of static, hardcoded numbers
+let screenTargets = [
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 },
+    { x: 0, y: 0 }
 ];
+
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 const smoothingBuffer = [];
 
@@ -35,7 +37,27 @@ window.onerror = function (message, source, lineno, colno, error) {
 function toggleSettings() { const panel = document.getElementById('settings-panel'); panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; }
 function updateSettings() { smoothFrames = parseInt(document.getElementById('smooth-range').value); document.getElementById('smooth-val').innerText = smoothFrames + " frames"; invertX = document.getElementById('invert-x-check').checked; }
 function clearHeatmap() { heatmapData = []; heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height); }
-function resizeCanvas() { heatmapCanvas.width = window.innerWidth; heatmapCanvas.height = window.innerHeight; }
+
+// 2. FIX: We intercept your existing resizeCanvas function to calculate a tight, 
+// high-accuracy 40% bounding box directly around the center of your screen!
+function resizeCanvas() {
+    heatmapCanvas.width = window.innerWidth;
+    heatmapCanvas.height = window.innerHeight;
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    // We restrict the calibration field box tightly around the center region
+    const boxWidth = window.innerWidth * 0.40;
+    const boxHeight = window.innerHeight * 0.40;
+
+    screenTargets = [
+        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // Top Left marker of the zone
+        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // Top Right marker of the zone
+        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // Bottom Left marker of the zone
+        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // Bottom Right marker of the zone
+    ];
+}
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
@@ -82,6 +104,7 @@ async function initSystem() {
         console.error(err);
     }
 }
+
 
 async function processFramesLoop() {
     if (detector && videoElement.readyState >= 2) {
