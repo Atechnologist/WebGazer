@@ -196,31 +196,7 @@ let dwellAccumulatorMs = 0; // The "charge" of our gaze capacitor
 let dwellTimerInterval = null; // Background loop thread handle
 const CAPACITOR_MAX_MS = 2000; // 2 seconds total target look duration
 
-function processGazeMapping(ex, ey) {
-    const { tl, tr, bl, br } = eyeGrid;
-    const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
-    const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
-    const u = Math.max(0, Math.min(1, tx));
-    const v = Math.max(0, Math.min(1, ty));
-    
-    let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
-    
-    smoothingBuffer.push({ x: targetX, y: targetY });
-    while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
-    
-    const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
-    const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
-    
-    gazePointer.style.left = `${avgX}px`; 
-    gazePointer.style.top = `${avgY}px`;
-    
-    heatmapData.push({ x: avgX, y: avgY, weight: 1 });
 
-    // FIX 1: Save coordinates to a global variable memory state instead of calculating layouts here!
-    currentGazeX = avgX;
-    currentGazeY = avgY;
-}
 
 // FIX 2: This function runs asynchronously on an independent 50ms interval loop.
 // This completely stops layout thrashing and prevents cursor tracking jitter!
@@ -266,6 +242,11 @@ function runBackgroundDwellCheck() {
     }
 }
 
+// New runtime variables for handling the Dynamic Offset Correction layer
+let trackingAnalysisBuffer = [];
+const ANALYSIS_FRAMES_REQUIRED = 60; // Analyzes about 2 seconds of natural look data
+let dynamicOffsetCalibrated = false;
+
 function showNextCalibrationDot() {
     if (calibrationStep < 4) { 
         calibDot.style.display = 'block'; 
@@ -277,20 +258,75 @@ function showNextCalibrationDot() {
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
+        // Stage 1: Display the button immediately, but tell the user it is mapping their posture
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
-            targetBtn.classList.add('active-ready');
-            targetBtn.innerText = "RELAY SWITCH [0%]";
+            targetBtn.style.setProperty('display', 'block', 'important');
+            targetBtn.style.visibility = 'visible';
+            targetBtn.innerText = "🔄 ANALYZING POSTURE...";
         }
         
-        // FIX 4: Fire up the independent background loop interval right when calibration finishes!
         if (!dwellTimerInterval) {
             dwellTimerInterval = setInterval(runBackgroundDwellCheck, 50);
         }
-        
         drawHeatmapLoop(); 
     }
 }
+
+function processGazeMapping(ex, ey) {
+    const { tl, tr, bl, br } = eyeGrid;
+    const tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
+    const ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
+    const u = Math.max(0, Math.min(1, tx));
+    const v = Math.max(0, Math.min(1, ty));
+    
+    // Map screen target positions accurately across our 40% inner bounding grid box
+    const x0 = screenTargets[0].x, x1 = screenTargets[1].x, x2 = screenTargets[2].x, x3 = screenTargets[3].x;
+    const y0 = screenTargets[0].y, y1 = screenTargets[1].y, y2 = screenTargets[2].y, y3 = screenTargets[3].y;
+
+    let targetX = (1 - u) * (1 - v) * x0 + u * (1 - v) * x1 + (1 - u) * v * x2 + u * v * x3;
+    let targetY = (1 - u) * (1 - v) * y0 + u * (1 - v) * y1 + (1 - u) * v * y2 + u * v * y3;
+    
+    smoothingBuffer.push({ x: targetX, y: targetY });
+    while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
+    
+    const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
+    const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
+    
+    gazePointer.style.left = `${avgX}px`; 
+    gazePointer.style.top = `${avgY}px`;
+    
+    heatmapData.push({ x: avgX, y: avgY, weight: 1 });
+    
+    // Stage 2: Passive Posture Profiling Tracker Loop
+    if (!dynamicOffsetCalibrated) {
+        trackingAnalysisBuffer.push({ x: avgX, y: avgY });
+        
+        if (trackingAnalysisBuffer.length >= ANALYSIS_FRAMES_REQUIRED) {
+            // Calculate the mathematical center of mass of your natural gaze coordinates
+            const totalX = trackingAnalysisBuffer.reduce((sum, pt) => sum + p.x, 0); // Typo catch fix: sum + pt.x
+            const totalY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0);
+            
+            const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
+            const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
+            
+            // Move the button directly to the center of your eye focus coordinates!
+            const btn = document.getElementById('relay-button-target');
+            if (btn) {
+                btn.style.left = `${computedUserCenterX}px`;
+                btn.style.top = `${computedUserCenterY}px`;
+                btn.classList.add('active-ready');
+                btn.innerText = "RELAY SWITCH [0%]";
+                log("Dynamic Offset Correction Complete. Target moved to center of gaze.");
+            }
+            dynamicOffsetCalibrated = true;
+        }
+    }
+
+    currentGazeX = avgX;
+    currentGazeY = avgY;
+}
+
 
 function drawHeatmapLoop() {
     if (!isCalibrated) return;
