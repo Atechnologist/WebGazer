@@ -242,12 +242,13 @@ function runBackgroundDwellCheck() {
     }
 }
 
-// New runtime variables for handling the Dynamic Offset Correction layer
+// New configuration variables for the continuous Heatmap Gravity Well
 let trackingAnalysisBuffer = [];
-const ANALYSIS_FRAMES_REQUIRED = 60; // Analyzes about 2 seconds of natural look data
+const RUNNING_WINDOW_SIZE = 90; // Tracks the center of mass over the last ~3 seconds of looking
 let dynamicOffsetCalibrated = false;
 
 function showNextCalibrationDot() {
+    // FIX 1: Enforce a strict validation check to ensure all 4 points process completely
     if (calibrationStep < 4) { 
         calibDot.style.display = 'block'; 
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
@@ -258,12 +259,12 @@ function showNextCalibrationDot() {
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
-        // Stage 1: Display the button immediately, but tell the user it is mapping their posture
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
             targetBtn.style.setProperty('display', 'block', 'important');
             targetBtn.style.visibility = 'visible';
-            targetBtn.innerText = "🔄 ANALYZING POSTURE...";
+            targetBtn.classList.add('active-ready');
+            targetBtn.innerText = "🔄 LOGGING HEATMAP...";
         }
         
         if (!dwellTimerInterval) {
@@ -280,7 +281,6 @@ function processGazeMapping(ex, ey) {
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
     
-    // Map screen target positions accurately across our 40% inner bounding grid box
     const x0 = screenTargets[0].x, x1 = screenTargets[1].x, x2 = screenTargets[2].x, x3 = screenTargets[3].x;
     const y0 = screenTargets[0].y, y1 = screenTargets[1].y, y2 = screenTargets[2].y, y3 = screenTargets[3].y;
 
@@ -290,36 +290,39 @@ function processGazeMapping(ex, ey) {
     smoothingBuffer.push({ x: targetX, y: targetY });
     while (smoothingBuffer.length > smoothFrames) { smoothingBuffer.shift(); }
     
-    const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
-    const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
+    const avgX = smoothingBuffer.reduce((sum, pt) => sum + pt.x, 0) / smoothingBuffer.length;
+    const avgY = smoothingBuffer.reduce((sum, pt) => sum + pt.y, 0) / smoothingBuffer.length;
     
     gazePointer.style.left = `${avgX}px`; 
     gazePointer.style.top = `${avgY}px`;
     
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
     
-        // Stage 2: Passive Posture Profiling Tracker Loop
-    if (!dynamicOffsetCalibrated) {
+    // FIX 2: Continuous Background Heatmap Tracking
+    if (isCalibrated) {
         trackingAnalysisBuffer.push({ x: avgX, y: avgY });
         
-        if (trackingAnalysisBuffer.length >= ANALYSIS_FRAMES_REQUIRED) {
-            // FIX: Corrected 'p.x' to 'pt.x' so the array maps out cleanly without crashing!
-            const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
-            const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
+        // Keep a moving window of recent gaze history
+        if (trackingAnalysisBuffer.length > RUNNING_WINDOW_SIZE) {
+            trackingAnalysisBuffer.shift();
+        }
+        
+        // Continuously compute the center of mass of your highest accuracy zone
+        const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
+        const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
+        
+        const btn = document.getElementById('relay-button-target');
+        if (btn && !relayActivated) {
+            // Smoothly slide the button to follow your densest look focus coordinates
+            btn.style.left = `${computedUserCenterX}px`;
+            btn.style.top = `${computedUserCenterY}px`;
             
-            // Move the button directly to the center of your natural eye focus coordinates!
-            const btn = document.getElementById('relay-button-target');
-            if (btn) {
-                btn.style.left = `${computedUserCenterX}px`;
-                btn.style.top = `${computedUserCenterY}px`;
-                btn.classList.add('active-ready');
-                btn.innerText = "RELAY SWITCH [0%]";
-                log("Dynamic Offset Correction Complete. Target moved to center of gaze.");
+            // Once the buffer has enough initial data, start updating the look timer progress percentages
+            if (trackingAnalysisBuffer.length >= 30) {
+                dynamicOffsetCalibrated = true;
             }
-            dynamicOffsetCalibrated = true;
         }
     }
-
 
     currentGazeX = avgX;
     currentGazeY = avgY;
