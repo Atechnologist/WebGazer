@@ -158,25 +158,38 @@ async function processFramesLoop() {
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
 function showNextCalibrationDot() {
-    if (calibrationStep < 4) {
-        calibDot.style.display = 'block';
-        calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
-        calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-    } else {
-        calibDot.style.display = 'none';
-        document.getElementById('ui-overlay').style.display = 'none';
-        isCalibrated = true;
-        gazePointer.style.display = 'block';
+    // Check if we are still within the 4 points range (indices 0, 1, 2, 3)
+    if (calibrationStep < 4) { 
+        calibDot.style.display = 'block'; 
+        calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
+        calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
+    } else { 
+        // 4th final tap has been registered! Turn off the training overlays safely
+        calibDot.style.display = 'none'; 
         
-        // Inject the active status class onto the pre-rendered grey menu button container
+        const overlay = document.getElementById('ui-overlay');
+        if (overlay) overlay.style.display = 'none'; 
+        
+        isCalibrated = true; 
+        gazePointer.style.display = 'block'; 
+        
+        // FIX: The Relay Button starts as display:none on page load. 
+        // We only show it and turn on its gravity well rules right here AFTER calibration completes!
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
+            targetBtn.style.setProperty('display', 'block', 'important');
+            targetBtn.style.visibility = 'visible';
             targetBtn.classList.add('active-ready');
-            targetBtn.innerText = "RELAY SWITCH [0%]";
+            targetBtn.innerText = "🔄 LOGGING HEATMAP...";
         }
-        drawHeatmapLoop();
+        
+        if (!dwellTimerInterval) {
+            dwellTimerInterval = setInterval(runBackgroundDwellCheck, 50);
+        }
+        drawHeatmapLoop(); 
     }
 }
+
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
