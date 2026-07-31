@@ -298,19 +298,16 @@ function processGazeMapping(ex, ey) {
     
     heatmapData.push({ x: avgX, y: avgY, weight: 1 });
     
-    // Stage 2: Passive Posture Profiling Tracker Loop
+        // Stage 2: Passive Posture Profiling Tracker Loop
     if (!dynamicOffsetCalibrated) {
         trackingAnalysisBuffer.push({ x: avgX, y: avgY });
         
         if (trackingAnalysisBuffer.length >= ANALYSIS_FRAMES_REQUIRED) {
-            // Calculate the mathematical center of mass of your natural gaze coordinates
-            const totalX = trackingAnalysisBuffer.reduce((sum, pt) => sum + p.x, 0); // Typo catch fix: sum + pt.x
-            const totalY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0);
-            
+            // FIX: Corrected 'p.x' to 'pt.x' so the array maps out cleanly without crashing!
             const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
             const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
             
-            // Move the button directly to the center of your eye focus coordinates!
+            // Move the button directly to the center of your natural eye focus coordinates!
             const btn = document.getElementById('relay-button-target');
             if (btn) {
                 btn.style.left = `${computedUserCenterX}px`;
@@ -322,6 +319,7 @@ function processGazeMapping(ex, ey) {
             dynamicOffsetCalibrated = true;
         }
     }
+
 
     currentGazeX = avgX;
     currentGazeY = avgY;
