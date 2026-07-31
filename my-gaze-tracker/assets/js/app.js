@@ -44,14 +44,6 @@ function resizeCanvas() {
     const boxWidth = window.innerWidth * 0.40;
     const boxHeight = window.innerHeight * 0.40;
 
-    // 2. Safely populate layout coordinates when browser window geometry builds
-    screenTargets = [
-        { x: centerX, y: centerY },                                   // 1st Dot: Center Anchor
-        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 2nd Dot: Top Left
-        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 3rd Dot: Top Right
-        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // 4th Dot: Bottom Left
-        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // 5th Dot: Bottom Right
-    ];
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
