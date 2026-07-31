@@ -59,29 +59,28 @@ button:disabled {
 }
 
 #relay-button-target {
-    /* Forced direct fixed positioning to lift it out of the menu tree layout blocks */
     position: fixed;
-    top: 15%; 
+    top: 50%; 
     left: 50%;
-    transform: translateX(-50%);
-    width: 240px; 
-    height: 80px;
+    transform: translate(-50%, -50%); /* Locks the button right in the center */
+    width: 260px; 
+    height: 90px;
     border-radius: 12px;
     font-weight: bold;
     text-align: center;
-    line-height: 74px; 
+    line-height: 84px; 
     font-size: 16px;
     box-sizing: border-box;
     transition: all 0.2s ease;
     
-    /* Make visible immediately on load, styled as waiting/grayed-out until calibrated */
     display: block !important;
     visibility: visible !important;
-    z-index: 9999 !important; /* Forces it safely above all canvases and videos */
+    z-index: 9999 !important; 
     background-color: rgba(30, 30, 30, 0.4) !important;
     border: 3px dashed #555 !important;
     color: #555 !important;
 }
+
 
 /* Active ready state class added dynamically via JavaScript at the end of tap loops */
 #relay-button-target.active-ready {
