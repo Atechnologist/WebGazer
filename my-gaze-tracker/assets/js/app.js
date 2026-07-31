@@ -38,28 +38,7 @@ function toggleSettings() { const panel = document.getElementById('settings-pane
 function updateSettings() { smoothFrames = parseInt(document.getElementById('smooth-range').value); document.getElementById('smooth-val').innerText = smoothFrames + " frames"; invertX = document.getElementById('invert-x-check').checked; }
 function clearHeatmap() { heatmapData = []; heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height); }
 
-// 2. FIX: We intercept your existing resizeCanvas function to calculate a tight, 
-// high-accuracy 40% bounding box directly around the center of your screen!
-function resizeCanvas() {
-    heatmapCanvas.width = window.innerWidth;
-    heatmapCanvas.height = window.innerHeight;
 
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    
-    // We restrict the calibration field box tightly around the center region
-    const boxWidth = window.innerWidth * 0.40;
-    const boxHeight = window.innerHeight * 0.40;
-
-    screenTargets = [
-        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // Top Left marker of the zone
-        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // Top Right marker of the zone
-        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // Bottom Left marker of the zone
-        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // Bottom Right marker of the zone
-    ];
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
 
 async function initSystem() {
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -157,24 +136,58 @@ async function processFramesLoop() {
 
 function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
 
+// 1. Expanded the array structure block to accommodate 5 sequential calibration points
+let screenTargets = [
+    { x: 0, y: 0 }, // Point 1: Absolute Center Anchor 
+    { x: 0, y: 0 }, // Point 2: Top Left
+    { x: 0, y: 0 }, // Point 3: Top Right
+    { x: 0, y: 0 }, // Point 4: Bottom Left
+    { x: 0, y: 0 }  // Point 5: Bottom Right
+];
+
+let eyeGrid = { tl: null, tr: null, bl: null, br: null };
+const smoothingBuffer = [];
+
+function resizeCanvas() {
+    heatmapCanvas.width = window.innerWidth;
+    heatmapCanvas.height = window.innerHeight;
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    // Confining our peripheral bounding box tightly to a comfortable 40% viewport zone
+    const boxWidth = window.innerWidth * 0.40;
+    const boxHeight = window.innerHeight * 0.40;
+
+    // 2. FIX: Re-mapped the indices layout coordinates array completely. 
+    // Target 0 is now explicitly set to the exact mathematical center of your screen glass!
+    screenTargets = [
+        { x: centerX, y: centerY },                                   // 1st Dot: Absolute Center Anchor
+        { x: centerX - (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 2nd Dot: Top Left
+        { x: centerX + (boxWidth / 2), y: centerY - (boxHeight / 2) }, // 3rd Dot: Top Right
+        { x: centerX - (boxWidth / 2), y: centerY + (boxHeight / 2) }, // 4th Dot: Bottom Left
+        { x: centerX + (boxWidth / 2), y: centerY + (boxHeight / 2) }  // 5th Dot: Bottom Right
+    ];
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
 function showNextCalibrationDot() {
-    // Check if we are still within the 4 points range (indices 0, 1, 2, 3)
-    if (calibrationStep < 4) { 
+    // 3. FIX: Raised the sequence collection upper ceiling limit check from 4 up to 5!
+    if (calibrationStep < 5) { 
         calibDot.style.display = 'block'; 
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`; 
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`; 
+        
+        // Update the log so you know exactly which coordinate point step you are processing
+        log(`Calibration active: Stare at target ${calibrationStep + 1} of 5.`);
     } else { 
-        // 4th final tap has been registered! Turn off the training overlays safely
+        // 5th final tap has successfully finished processing! Kill tracking overlays safely
         calibDot.style.display = 'none'; 
-        
-        const overlay = document.getElementById('ui-overlay');
-        if (overlay) overlay.style.display = 'none'; 
-        
+        document.getElementById('ui-overlay').style.display = 'none'; 
         isCalibrated = true; 
         gazePointer.style.display = 'block'; 
         
-        // FIX: The Relay Button starts as display:none on page load. 
-        // We only show it and turn on its gravity well rules right here AFTER calibration completes!
         const targetBtn = document.getElementById('relay-button-target');
         if (targetBtn) {
             targetBtn.style.setProperty('display', 'block', 'important');
@@ -189,6 +202,25 @@ function showNextCalibrationDot() {
         drawHeatmapLoop(); 
     }
 }
+
+// 4. Update the event window click tap listener mapping keys indices blocks
+const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
+window.addEventListener(triggerEvent, (e) => {
+    if (calibrationStep >= 5 || isCalibrated || calibDot.style.display === 'none') return;
+    if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest?.('#settings-panel')) return;
+    if (!currentFeatures) return; 
+
+    // Point 0 (Center Anchor) functions as our baseline feature mapping calibration lock.
+    // Points 1, 2, 3, 4 map directly out to your corners dictionary keys layout profiles:
+    if (calibrationStep > 0) {
+        const keys = ['tl', 'tr', 'bl', 'br'];
+        eyeGrid[keys[calibrationStep - 1]] = { x: currentFeatures.x, y: currentFeatures.y };
+    }
+    
+    calibrationStep++;
+    showNextCalibrationDot();
+});
+
 
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
