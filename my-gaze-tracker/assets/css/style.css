@@ -58,11 +58,14 @@ button:disabled {
     color: #545454 !important;
 }
 
+/* CONSOLIDATED RELAY BUTTON COMPONENT */
 #relay-button-target {
+    /* Fixed screen glass positioning layer */
     position: fixed;
     top: 50%; 
     left: 50%;
-    transform: translate(-50%, -50%); /* Locks the button right in the center */
+    transform: translate(-50%, -50%); 
+    
     width: 260px; 
     height: 90px;
     border-radius: 12px;
@@ -72,18 +75,20 @@ button:disabled {
     font-size: 16px;
     box-sizing: border-box;
     transition: all 0.2s ease;
-    
-    display: block !important;
-    visibility: visible !important;
     z-index: 9999 !important; 
+    
+    /* 1. Hides the button completely on boot so it cannot steal your "Start Calibration" click! */
+    display: none; 
+    
+    /* Dimmed waiting aesthetic states properties */
     background-color: rgba(30, 30, 30, 0.4) !important;
     border: 3px dashed #555 !important;
     color: #555 !important;
 }
 
-
-/* Active ready state class added dynamically via JavaScript at the end of tap loops */
+/* JavaScript pushes this class onto the element only after the 4th tap finishes */
 #relay-button-target.active-ready {
+    display: block !important; /* Wakes the button element view up safely */
     background-color: rgba(30, 30, 30, 0.95) !important;
     border: 3px solid #ff9900 !important;
     color: #ff9900 !important;
@@ -94,7 +99,8 @@ button:disabled {
     background-color: #ff9900 !important;
     color: #111 !important;
     box-shadow: 0 0 35px #ff9900;
-    transform: translateX(-50%) scale(1.05);
+    /* 2. FIXED: Maintains perfect geometric centering anchors while scaling up on eye focus */
+    transform: translate(-50%, -50%) scale(1.05); 
 }
 
 #relay-button-target.triggered {
@@ -102,5 +108,6 @@ button:disabled {
     border-color: #00ffcc !important;
     color: #111 !important;
     box-shadow: 0 0 45px #00ffcc;
+    transform: translate(-50%, -50%) scale(1.0);
 }
 
