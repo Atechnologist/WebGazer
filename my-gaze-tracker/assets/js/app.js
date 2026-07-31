@@ -77,7 +77,6 @@ async function initSystem() {
         log(`Active Engine Backend: ${tf.getBackend()}`);
         
         log("Downloading neural face mesh patterns...");
-        // Use the native, reliable legacy facemesh API structure
         model = await facemesh.load({ maxFaces: 1 });
         
         log("Connecting to front video stream feed...");
@@ -109,7 +108,6 @@ async function trackFrameLoop() {
             if (predictions.length === 0) {
                 log("Searching for tracking profile context...");
             } else {
-                // Legacy Facemesh returns points inside the '.scaledMesh' array structure directly
                 const mesh = predictions[0].scaledMesh;
                 
                 // Stable fallback landmark matrices (indices 33, 133, 159)
