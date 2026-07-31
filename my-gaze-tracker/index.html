@@ -47,7 +47,8 @@
 
     <div id="ui-overlay">
         <h2 id="status-text">Loading Neural Web Models...</h2>
-        <button id="start-btn" onclick="startCalibration()" disabled>Start Calibration</button>
+        <!-- Update the onclick attribute to pass 'event' -->
+        <button id="start-btn" onclick="startCalibration(event)" disabled>Start Calibration</button>
     </div>
 
     <!-- Link to Separate Tracker Application Logic reload -->
