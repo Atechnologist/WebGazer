@@ -19,14 +19,14 @@ const CAPACITOR_MAX_MS = 2000;
 let hoverStartTime = null;
 let relayActivated = false;
 
-// 1. Safe 5-point layout coordinate placeholder array mapping
-let screenTargets = [
-    { x: 0, y: 0 }, // Center
-    { x: 0, y: 0 }, // Top Left
-    { x: 0, y: 0 }, // Top Right
-    { x: 0, y: 0 }, // Bottom Left
-    { x: 0, y: 0 }  // Bottom Right
+// Dynamic percentage-based layout: places dots perfectly relative to any screen size
+const screenTargets = [
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left (15% in)
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
 ];
+
 
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 const smoothingBuffer = [];
@@ -152,7 +152,16 @@ async function processFramesLoop() {
     requestAnimationFrame(processFramesLoop);
 }
 
-function startCalibration() { startBtn.style.display = 'none'; statusText.innerText = "Stare at the red dot and TAP the screen to capture."; calibrationStep = 0; showNextCalibrationDot(); }
+function startCalibration(event) {
+    if (event) event.stopPropagation(); // CRITICAL: Blocks the button click from instantly triggering a tap on the first dot!
+    
+    startBtn.style.display = 'none';
+    statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
+    calibrationStep = 0;
+    
+    webgazer.clearData();
+    showNextCalibrationDot();
+}
 
 function showNextCalibrationDot() {
     if (calibrationStep < 5) {
