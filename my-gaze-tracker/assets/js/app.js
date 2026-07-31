@@ -215,5 +215,87 @@ function processGazeMapping(ex, ey) {
 
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
+    heatmapData.push({ x: avgX, y: avgY, weight: 1 });
 
-heatmapData.push({ x: avgX, y: avgY, weight: 1 });// Continuous dynamic gravity well logic mapping heatmapslet trackingAnalysisBuffer = heatmapData.slice(-90); // Use the last 90 frames (~3 seconds)if (trackingAnalysisBuffer.length >= 30) {const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;const btn = document.getElementById('relay-button-target');if (btn && !relayActivated) {btn.style.left = ${computedUserCenterX}px;btn.style.top = ${computedUserCenterY}px;dynamicOffsetCalibrated = true;}}currentGazeX = avgX;currentGazeY = avgY;}function runBackgroundDwellCheck() {const btn = document.getElementById('relay-button-target');if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;const rect = btn.getBoundingClientRect();const isOverlapping = (currentGazeX >= rect.left && currentGazeX <= rect.right && currentGazeY >= rect.top && currentGazeY <= rect.bottom);const LOOP_INTERVAL_MS = 50;if (isOverlapping && dynamicOffsetCalibrated) {btn.classList.add('gaze-hover');dwellAccumulatorMs += LOOP_INTERVAL_MS;if (dwellAccumulatorMs >= CAPACITOR_MAX_MS) {dwellAccumulatorMs = CAPACITOR_MAX_MS;relayActivated = true;btn.classList.remove('gaze-hover');btn.classList.add('triggered');btn.innerText = "💥 RELAY ACTIVE!";log("Automation Event: Relay executed smoothly via Gaze Focus!");setTimeout(() => {dwellAccumulatorMs = 0;relayActivated = false;btn.classList.remove('triggered');btn.innerText = "RELAY SWITCH [0%]";log("Tracker reset complete. Ready for next loop.");}, 2500);}} else {btn.classList.remove('gaze-hover');dwellAccumulatorMs -= (LOOP_INTERVAL_MS * 1.5);if (dwellAccumulatorMs < 0) dwellAccumulatorMs = 0;}if (!relayActivated) {if (!dynamicOffsetCalibrated) {btn.innerText = "🔄 ALIGNING ZONE...";} else {const progressPercentage = Math.floor((dwellAccumulatorMs / CAPACITOR_MAX_MS) * 100);btn.innerText = progressPercentage > 0 ? TRIGGERING... [${progressPercentage}%] : "RELAY SWITCH [0%]";}}}function drawHeatmapLoop() {if (!isCalibrated) return;heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);heatmapData.forEach(point => {let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)');gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');heatmapCtx.fillStyle = gradient;heatmapCtx.beginPath();heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);heatmapCtx.fill();});requestAnimationFrame(drawHeatmapLoop);}window.onload = () => { setTimeout(initSystem, 1000); };
+    // 1. Continuous dynamic gravity well logic mapping heatmaps
+    let trackingAnalysisBuffer = heatmapData.slice(-90); // Use the last 90 frames (~3 seconds)
+    if (trackingAnalysisBuffer.length >= 30) {
+        const computedUserCenterX = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.x, 0) / trackingAnalysisBuffer.length;
+        const computedUserCenterY = trackingAnalysisBuffer.reduce((sum, pt) => sum + pt.y, 0) / trackingAnalysisBuffer.length;
+        
+        const btn = document.getElementById('relay-button-target');
+        if (btn && !relayActivated) {
+            // Restored the required string template literal backticks safely
+            btn.style.left = `${computedUserCenterX}px`;
+            btn.style.top = `${computedUserCenterY}px`;
+            dynamicOffsetCalibrated = true;
+        }
+    }
+
+    currentGazeX = avgX;
+    currentGazeY = avgY;
+}
+
+function runBackgroundDwellCheck() {
+    const btn = document.getElementById('relay-button-target');
+    if (!btn || !btn.classList.contains('active-ready') || relayActivated) return;
+
+    const rect = btn.getBoundingClientRect();
+    const isOverlapping = (currentGazeX >= rect.left && currentGazeX <= rect.right && currentGazeY >= rect.top && currentGazeY <= rect.bottom);
+    const LOOP_INTERVAL_MS = 50;
+
+    if (isOverlapping && dynamicOffsetCalibrated) {
+        btn.classList.add('gaze-hover');
+        dwellAccumulatorMs += LOOP_INTERVAL_MS;
+        
+        if (dwellAccumulatorMs >= CAPACITOR_MAX_MS) {
+            dwellAccumulatorMs = CAPACITOR_MAX_MS;
+            relayActivated = true; // Locks loop during the active trigger phase
+            
+            btn.classList.remove('gaze-hover');
+            btn.classList.add('triggered');
+            btn.innerText = "💥 RELAY ACTIVE!";
+            log("Automation Event: Relay executed smoothly via Gaze Focus!");
+            
+            setTimeout(() => {
+                dwellAccumulatorMs = 0;
+                relayActivated = false; // Unlocks look tracking calculations
+                btn.classList.remove('triggered');
+                btn.innerText = "RELAY SWITCH [0%]";
+                log("Tracker reset complete. Ready for next loop.");
+            }, 2500);
+        }
+    } else {
+        btn.classList.remove('gaze-hover');
+        dwellAccumulatorMs -= (LOOP_INTERVAL_MS * 1.5);
+        if (dwellAccumulatorMs < 0) dwellAccumulatorMs = 0;
+    }
+
+    if (!relayActivated) {
+        if (!dynamicOffsetCalibrated) {
+            btn.innerText = "🔄 ALIGNING ZONE...";
+        } else {
+            const progressPercentage = Math.floor((dwellAccumulatorMs / CAPACITOR_MAX_MS) * 100);
+            // Restored the required string template literal backticks safely
+            btn.innerText = progressPercentage > 0 ? `TRIGGERING... [${progressPercentage}%]` : "RELAY SWITCH [0%]";
+        }
+    }
+}
+
+function drawHeatmapLoop() {
+    if (!isCalibrated) return;
+    heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
+    heatmapData.forEach(point => {
+        let gradient = heatmapCtx.createRadialGradient(point.x, point.y, 2, point.x, point.y, 35);
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.15)');
+        gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.05)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        heatmapCtx.fillStyle = gradient;
+        heatmapCtx.beginPath();
+        heatmapCtx.arc(point.x, point.y, 35, 0, Math.PI * 2);
+        heatmapCtx.fill();
+    });
+    requestAnimationFrame(drawHeatmapLoop);
+}
+
+window.onload = () => { setTimeout(initSystem, 1000); };
