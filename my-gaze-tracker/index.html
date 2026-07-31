@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mobile Gaze Tracker - Modular Build</title>
+    <title>Mobile Gaze Tracker - Stable Rollback</title>
     
-    <!-- FIX 1: Restored your exact, working TensorFlow.js bundle script configurations -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-detection@1.0.2/dist/face-detection.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js"></script> 
+    <!-- Ultra-Stable Locked Legacy TensorFlow Bundle -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+    <!-- Native Original FaceMesh Framework -->
+    <script src="https://jsdelivr.net"></script>
 
-    <!-- Link Mapping to Separate Stylesheet Layout Modules -->
     <link rel="stylesheet" href="assets/css/style.css?v=exact_match">
     <link rel="icon" href="data:,">
 </head>
@@ -22,11 +23,11 @@
     <div id="calib-dot" class="calib-dot"></div>
     <div id="gaze-pointer"></div>
 
-     <!-- Embedded Relay target block element inside working menu layout -->
-        <div class="control-group">
-            <div id="relay-button-target">RELAY SWITCH [0%]</div>
-    
-    <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
+    <div class="control-group">
+        <div id="relay-button-target">RELAY SWITCH [0%]</div>
+        <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
+    </div>
+
     <div id="settings-panel">
         <div class="control-group">
             <label>Smoothing (Jitter Fix)</label>
@@ -40,19 +41,13 @@
         <div class="control-group">
             <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; margin-bottom:15px;">Clear Heatmap</button>
         </div>
-        
-       
-        </div>
     </div>
 
     <div id="ui-overlay">
         <h2 id="status-text">Loading Neural Web Models...</h2>
-        <!-- Update the onclick attribute to pass 'event' -->
         <button id="start-btn" onclick="startCalibration(event)" disabled>Start Calibration</button>
     </div>
 
-    <!-- Link to Separate Tracker Application Logic reload -->
     <script src="assets/js/app.js?v=exact_match"></script>
-
 </body>
 </html>
