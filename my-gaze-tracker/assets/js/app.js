@@ -13,6 +13,12 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
+// Gravity Well Dynamic Positioning State
+let gravityBuffer = [];
+const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
+let relayX = window.innerWidth / 2;
+let relayY = window.innerHeight / 2;
+
 // Core Architecture Properties
 let model = null;
 let currentFeatures = null;
@@ -180,7 +186,7 @@ window.addEventListener(triggerEvent, (e) => {
 });
 
 // Mathematical Coordinate Normalization Transformation Layer Map Engine
-function processGazeMapping(ex, ey) {
+function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
 
     let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
@@ -193,25 +199,37 @@ function processGazeMapping(ex, ey) {
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
 
-    // Bilinear vector interpolation equation calculating pixel results across space
     let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
     let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
-    smoothingBuffer.push({ x: targetX, y: targetY });
-    while (smoothingBuffer.length > smoothingFrames) {
-        smoothingBuffer.shift();
-    }
-
-    const avgX = smoothingBuffer.reduce((sum, p) => sum + p.x, 0) / smoothingBuffer.length;
-    const avgY = smoothingBuffer.reduce((sum, p) => sum + p.y, 0) / smoothingBuffer.length;
+    // Pass through One-Euro Filter
+    const avgX = filterX.filter(targetX, timestamp);
+    const avgY = filterY.filter(targetY, timestamp);
 
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
+    // --- GRAVITY WELL DYNAMIC REPOSITIONING ---
+    gravityBuffer.push({ x: avgX, y: avgY });
+    if (gravityBuffer.length >= gravityWindowSize) {
+        gravityBuffer.shift(); // Keep buffer fixed size
+        
+        // Calculate center of mass of natural gaze
+        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
+        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
+        
+        // Smoothly interpolate relay button position toward the gaze center of mass
+        relayX += (centerMassX - relayX) * 0.05;
+        relayY += (centerMassY - relayY) * 0.05;
+        
+        // Apply new coordinates to the floating relay button
+        relayTarget.style.left = `${relayX}px`;
+        relayTarget.style.top = `${relayY}px`;
+    }
+
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
 }
-
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
