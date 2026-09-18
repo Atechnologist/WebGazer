@@ -358,7 +358,8 @@ window.onload = () => {
 
 async function triggerHardwareRelay() {
     try {
-        await fetch('http://atom-relay-node.local/buttons/web_pulse_button/press', {
+        // Replace with your ESP32's static or DHCP local IP address
+        await fetch('http://192.168.8.183/buttons/web_pulse_button/press', {
             method: 'POST',
             mode: 'no-cors'
         });
