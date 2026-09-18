@@ -88,7 +88,9 @@ button:disabled {
 
 /* JavaScript pushes this class onto the element only after the 4th tap finishes */
 #relay-button-target.active-ready {
-    display: block !important; /* Wakes the button element view up safely */
+    display: block !important;
+    position: fixed;
+    transform: translate(-50%, -50%); /* Crucial for keeping it centered on its X/Y coordinates */
     background-color: rgba(30, 30, 30, 0.95) !important;
     border: 3px solid #ff9900 !important;
     color: #ff9900 !important;
