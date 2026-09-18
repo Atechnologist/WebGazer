@@ -358,12 +358,17 @@ window.onload = () => {
 
 async function triggerHardwareRelay() {
     try {
-        // Replace with your ESP32's static or DHCP local IP address
-        await fetch('http://192.168.8.183/buttons/web_pulse_button/press', {
+        const response = await fetch('http://atom-relay-node.local/buttons/web_pulse_button/press', {
             method: 'POST',
-            mode: 'no-cors'
+            mode: 'cors',
+            credentials: 'omit'
         });
-        log("Hardware webhook dispatched to ESPHome node.");
+        
+        if (response.ok || response.type === 'opaque') {
+            log("💥 Gaze trigger sent successfully to ESPHome!");
+        } else {
+            log(`Webhook Error: Server responded with status ${response.status}`);
+        }
     } catch (err) {
         log("Webhook Error: Failed to reach ESPHome device.");
         console.error(err);
