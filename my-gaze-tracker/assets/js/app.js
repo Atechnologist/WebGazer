@@ -358,19 +358,11 @@ window.onload = () => {
 
 async function triggerHardwareRelay() {
     try {
-        const response = await fetch('http://atom-relay-node.local/buttons/web_pulse_button/press', {
-            method: 'POST',
-            mode: 'cors',
-            credentials: 'omit'
-        });
-        
-        if (response.ok || response.type === 'opaque') {
-            log("💥 Gaze trigger sent successfully to ESPHome!");
-        } else {
-            log(`Webhook Error: Server responded with status ${response.status}`);
-        }
+        // Using an Image element bypasses CORS and Mixed-Content fetch blocks completely for local triggers
+        const img = new Image();
+        img.src = 'http://atom-relay-node.local/buttons/web_pulse_button/press?' + Date.now();
+        console.log("💥 Gaze trigger dispatched locally via image beacon!");
     } catch (err) {
-        log("Webhook Error: Failed to reach ESPHome device.");
-        console.error(err);
+        console.error("Trigger Error:", err);
     }
 }
