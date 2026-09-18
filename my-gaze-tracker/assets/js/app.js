@@ -358,11 +358,17 @@ window.onload = () => {
 
 async function triggerHardwareRelay() {
     try {
-        // Using an Image element bypasses CORS and Mixed-Content fetch blocks completely for local triggers
+        // Fire-and-forget request using an invisible image beacon or fetch with no-cors
+        // Browsers permit mixed-content 'no-cors' requests for simple triggers on local networks
+        const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
+        
+        // Method A: Image ping technique (bypasses mixed-content block in most chromium browsers)
         const img = new Image();
-        img.src = 'http://atom-relay-node.local/buttons/web_pulse_button/press?' + Date.now();
-        console.log("💥 Gaze trigger dispatched locally via image beacon!");
+        img.src = `${targetUrl}?timestamp=${Date.now()}`;
+        
+        log("Hardware webhook dispatched via beacon.");
     } catch (err) {
-        console.error("Trigger Error:", err);
+        log("Webhook Error: Failed to reach ESPHome device.");
+        console.error(err);
     }
 }
