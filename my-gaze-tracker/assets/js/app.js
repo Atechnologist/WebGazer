@@ -253,5 +253,6 @@ async function triggerHardwareRelay() {
         log("Hardware webhook dispatched to ESPHome node.");
     } catch (err) {
         log("Webhook Error: Failed to reach ESPHome device.");
+        console.error(err);
     }
 }
