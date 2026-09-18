@@ -29,6 +29,62 @@ let isCalibrated = false;
 let smoothingFrames = 6;
 let invertX = false;
 
+// --- ONE-EURO FILTER GLOBAL INSTANCES ---
+class LowPassFilter {
+    constructor(alpha, initval = 0) {
+        this.y = initval;
+        this.s = initval;
+        this.initialized = false;
+        this.setAlpha(alpha);
+    }
+    setAlpha(alpha) {
+        if (alpha <= 0 || alpha > 1) throw new Error("Alpha must be in (0, 1]");
+        this.alpha = alpha;
+    }
+    filter(value, alpha = this.alpha) {
+        if (!this.initialized) {
+            this.s = value;
+            this.initialized = true;
+        } else {
+            this.s = this.alpha * value + (1 - this.alpha) * this.s;
+        }
+        return this.s;
+    }
+    lastValue() { return this.s; }
+}
+
+class OneEuroFilter {
+    constructor(freq, mincutoff = 1.0, beta = 0.0, dcutoff = 1.0) {
+        this.freq = freq;
+        this.mincutoff = mincutoff;
+        this.beta = beta;
+        this.dcutoff = dcutoff;
+        this.x_filter = new LowPassFilter(this.alpha(mincutoff));
+        this.dx_filter = new LowPassFilter(this.alpha(dcutoff));
+        this.last_time = null;
+    }
+    alpha(cutoff) {
+        const te = 1.0 / this.freq;
+        const tau = 1.0 / (2 * Math.PI * cutoff);
+        return 1.0 / (1.0 + tau / te);
+    }
+    filter(value, timestamp = null) {
+        if (this.last_time && timestamp) {
+            this.freq = 1.0 / Math.max(1e-4, (timestamp - this.last_time) / 1000.0);
+        }
+        this.last_time = timestamp;
+        const prev_x = this.x_filter.lastValue();
+        const dx = (value - prev_x) * this.freq;
+        const edx = this.dx_filter.filter(dx, this.alpha(this.dcutoff));
+        const cutoff = this.mincutoff + this.beta * Math.abs(edx);
+        return this.x_filter.filter(value, this.alpha(cutoff));
+    }
+}
+
+// Initialize individual filters globally for X and Y coordinate mapping streams (~60fps base)
+const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
+const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
+
 // Interactive Percentage Inset Coordinates 
 const screenTargets = [
     { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
