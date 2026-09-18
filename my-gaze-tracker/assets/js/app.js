@@ -19,6 +19,13 @@ const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
+// Dwell Capacitor & Trigger State Properties
+let dwellProgress = 0;       // 0 to 100%
+let isTriggered = false;
+let isCoolingDown = false;
+const dwellChargeRate = 2.5; // Speed of filling per frame
+const dwellDrainRate = 1.5;  // Speed of draining when looking away
+
 // Core Architecture Properties
 let model = null;
 let currentFeatures = null;
@@ -222,10 +229,13 @@ function showNextCalibrationDot() {
         document.getElementById('ui-overlay').style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
+        
+        // --- WAKE UP THE RELAY BUTTON ---
+        relayTarget.classList.add('active-ready');
+        
         log("System Gaze Processing active.");
     }
 }
-
 // Capturing Interactive Event Trigger Maps
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
