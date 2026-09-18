@@ -220,8 +220,9 @@ function renderHeatmapFootprint(x, y) {
 }
 
 function checkRelayActivation(gazeX, gazeY) {
+    if (isCoolingDown) return;
+
     const relayRect = relayTarget.getBoundingClientRect();
-    
     const isGazing = (
         gazeX >= relayRect.left &&
         gazeX <= relayRect.right &&
@@ -230,13 +231,40 @@ function checkRelayActivation(gazeX, gazeY) {
     );
 
     if (isGazing) {
-        relayTarget.style.background = '#00ffcc';
-        relayTarget.style.color = '#111';
-        relayTarget.innerText = "RELAY ACTIVE [100%]";
+        // Charge the capacitor smoothly
+        dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
+        relayTarget.classList.add('gaze-hover');
     } else {
-        relayTarget.style.background = 'transparent';
-        relayTarget.style.color = '#00ffcc';
-        relayTarget.innerText = "RELAY SWITCH [0%]";
+        // Slowly drain when looking away
+        dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
+        relayTarget.classList.remove('gaze-hover');
+    }
+
+    // <--- IT GOES RIGHT HERE: --->
+    if (dwellProgress >= 100 && !isTriggered) {
+        isTriggered = true;
+        isCoolingDown = true;
+        
+        relayTarget.classList.remove('gaze-hover');
+        relayTarget.classList.add('triggered');
+        relayTarget.innerText = "💥 RELAY ACTIVE!";
+        log("Relay trigger fired successfully!");
+
+        // Dispatch the ESPHome hardware webhook
+        triggerHardwareRelay();
+
+        // 2.5-second cooldown and reset loop
+        setTimeout(() => {
+            dwellProgress = 0;
+            isTriggered = false;
+            isCoolingDown = false;
+            relayTarget.classList.remove('triggered');
+            relayTarget.innerText = "RELAY SWITCH [0%]";
+            log("Relay capacitor reset. Ready for next test.");
+        }, 2500);
+    } else if (!isTriggered) {
+        const percent = Math.floor(dwellProgress);
+        relayTarget.innerText = `RELAY SWITCH [${percent}%]`;
     }
 }
 
