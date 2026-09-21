@@ -40,6 +40,12 @@
         <div class="control-group">
             <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; margin-bottom:15px;">Clear Heatmap</button>
         </div>
+        <div id="ble-control-panel" style="position: fixed; top: 20px; right: 20px; z-index: 9999; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; color: #fff; font-family: sans-serif;">
+            <button id="bleConnectBtn" onclick="connectBLE()" style="background: #007aff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            Pair Atom Lite (BLE)
+            </button>
+            <div id="connectionStatus" style="font-size: 12px; margin-top: 6px; color: #aaa;">Status: Disconnected</div>
+        </div>
     </div>
 
     <div id="ui-overlay">
