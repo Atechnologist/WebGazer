@@ -372,3 +372,45 @@ async function triggerHardwareRelay() {
         console.error(err);
     }
 }
+
+let bleDevice, bleCharacteristic;
+
+// 1. Connect function (must be tied to a user click event for browser security permissions)
+async function connectBLE() {
+    try {
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) statusEl.innerText = "Status: Scanning...";
+
+        bleDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'atom-relay-node' }],
+            optionalServices: ['12345678-1234-1234-1234-1234567890ab']
+        });
+
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService('12345678-1234-1234-1234-1234567890ab');
+        bleCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-ba9876543210');
+
+        if (statusEl) statusEl.innerText = "Status: Connected";
+        console.log("Connected to Atom Lite via BLE");
+    } catch (err) {
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) statusEl.innerText = "Status: Failed";
+        console.error("BLE Connection error:", err);
+    }
+}
+
+// 2. Trigger function called when dwell capacitor reaches 100%
+async function triggerHardwareRelay() {
+    if (!bleCharacteristic) {
+        console.warn("BLE not connected. Please pair device first.");
+        return;
+    }
+
+    try {
+        const encoder = new TextEncoder();
+        await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
+        console.log("💥 Relay trigger command sent over BLE");
+    } catch (err) {
+        console.error("Failed to write BLE characteristic:", err);
+    }
+}
