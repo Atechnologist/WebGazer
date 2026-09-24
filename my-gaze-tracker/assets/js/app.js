@@ -1,3 +1,4 @@
+name=app.js
 const videoElement = document.getElementById('webcam');
 const calibDot = document.getElementById('calib-dot');
 const gazePointer = document.getElementById('gaze-pointer');
@@ -19,12 +20,12 @@ const gravityWindowSize = 90;
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
-// Dwell Capacitor & Trigger State Properties
+// Dwell Capacitor & Trigger State Properties (Balanced to prevent drift triggers)
 let dwellProgress = 0;       
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 2.5; 
-const dwellDrainRate = 1.5;  
+const dwellChargeRate = 1.2; // Slower fill rate requires intentional fixation
+const dwellDrainRate = 3.0;  // Fast drain rate instantly clears accidental jitter
 
 // Core Architecture Properties
 let model = null;
@@ -33,7 +34,7 @@ let calibrationStep = 0;
 let isCalibrated = false;
 let calibrationMode = 5; // Configurable: change to 9 for 9-point calibration
 let screenTargets = [];
-let calibrationSamples = []; // Replaces rigid 4-point eyeGrid
+let calibrationSamples = []; 
 
 // Custom Configuration Parameters State
 let smoothingFrames = 6;
@@ -94,7 +95,7 @@ class OneEuroFilter {
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-// Setup multi-point calibration layout
+// Setup multi-point calibration layout (Reading order: Top-Left -> Top-Right -> Center -> Bottom-Left -> Bottom-Right)
 function setupCalibrationTargets(mode = 5) {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -103,11 +104,11 @@ function setupCalibrationTargets(mode = 5) {
 
     if (mode === 5) {
         screenTargets = [
-            { x: padX, y: padY },                 // Top-Left
-            { x: w - padX, y: padY },             // Top-Right
-            { x: w / 2, y: h / 2 },               // Center
-            { x: padX, y: h - padY },             // Bottom-Left
-            { x: w - padX, y: h - padY }          // Bottom-Right
+            { x: padX, y: padY },                 // 1. Top-Left
+            { x: w - padX, y: padY },             // 2. Top-Right
+            { x: w / 2, y: h / 2 },               // 3. Center
+            { x: padX, y: h - padY },             // 4. Bottom-Left
+            { x: w - padX, y: h - padY }          // 5. Bottom-Right
         ];
     } else {
         screenTargets = [
@@ -206,7 +207,7 @@ async function trackFrameLoop() {
                     ];
 
                     if (isCalibrated) {
-                        processGazeMapping(currentFeatures[0], currentFeatures[1]);
+                        processGazeMapping(currentFeatures[0], currentFeatures[1], performance.now());
                     }
                 }
             }
@@ -224,7 +225,7 @@ window.startCalibration = function(event) {
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
     isCalibrated = false;
-    calibrationSamples = []; // Reset dataset storage
+    calibrationSamples = []; 
     showNextCalibrationDot();
 };
 
@@ -263,14 +264,14 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
-// Robust Weighted Regression Mapping (Inverse Distance Weighting) for multi-point targets
+// Robust Weighted Regression Mapping (Inverse Distance Weighting)
 function processGazeMapping(ex, ey, timestamp) {
     if (calibrationSamples.length === 0) return;
 
     let totalWeight = 0;
     let sumX = 0;
     let sumY = 0;
-    const p = 2.0; // Distance decay power
+    const p = 2.0; 
 
     for (let sample of calibrationSamples) {
         const dx = ex - sample.featureX;
@@ -318,6 +319,9 @@ function processGazeMapping(ex, ey, timestamp) {
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
+    
+    // Evaluate live diagnostics seamlessly in loop
+    evaluateDiagnostics(avgX, avgY);
 }
 
 function renderHeatmapFootprint(x, y) {
@@ -414,22 +418,22 @@ async function triggerHardwareRelay() {
         console.error("Failed to write BLE characteristic:", err);
     }
 }
+
 // --- Diagnostic Testing Logic ---
 
-// 1. Fixed Target Dwell Timer Logic
 const fixedBtn = document.getElementById('test-fixed-btn');
-const statusText = document.getElementById('diagnostic-status');
+const diagnosticStatusText = document.getElementById('diagnostic-status');
 let dwellTimeAccumulator = 0;
-const requiredDwell = 800; // milliseconds required to trigger
+const requiredDwell = 800; 
 let lastFrameTime = performance.now();
 
-function evaluateDiagnostics(gazeX, gazaY) {
+function evaluateDiagnostics(gazeX, gazeY) {
     if (!fixedBtn) return;
 
     const rect = fixedBtn.getBoundingClientRect();
     const isInsideFixed = (
         gazeX >= rect.left && gazeX <= rect.right &&
-        gazaY >= rect.top && gazaY <= rect.bottom
+        gazeY >= rect.top && gazeY <= rect.bottom
     );
 
     const now = performance.now();
@@ -440,37 +444,34 @@ function evaluateDiagnostics(gazeX, gazaY) {
         dwellTimeAccumulator += deltaTime;
         const progress = Math.min(100, (dwellTimeAccumulator / requiredDwell) * 100);
         fixedBtn.style.background = `linear-gradient(90deg, #2ed573 ${progress}%, #333 ${progress}%)`;
-        statusText.innerText = `Status: Fixating... (${Math.round(progress)}%)`;
+        if (diagnosticStatusText) diagnosticStatusText.innerText = `Status: Fixating... (${Math.round(progress)}%)`;
 
         if (dwellTimeAccumulator >= requiredDwell) {
-            statusText.innerText = "Status: SUCCESS! Fixed Target Triggered.";
+            if (diagnosticStatusText) diagnosticStatusText.innerText = "Status: SUCCESS! Fixed Target Triggered.";
             fixedBtn.style.borderColor = "#2ed573";
-            // Optional: Reset after success
             setTimeout(() => { dwellTimeAccumulator = 0; }, 1000);
         }
     } else {
-        dwellTimeAccumulator = Math.max(0, dwellTimeAccumulator - (deltaTime * 1.5)); // Decay faster when looking away
-        const progress = (dwellTimeAccumulator / requiredDwell) * 100;
+        dwellTimeAccumulator = Math.max(0, dwellTimeAccumulator - (deltaTime * 1.5)); 
         fixedBtn.style.background = `#333`;
-        if (dwellTimeAccumulator === 0) {
-            statusText.innerText = "Status: Ready for test (Looking away)";
+        if (dwellTimeAccumulator === 0 && diagnosticStatusText) {
+            diagnosticStatusText.innerText = "Status: Ready for test (Looking away)";
             fixedBtn.style.borderColor = "#555";
         }
     }
 }
 
-// 2. Moving Target Animation Logic (Smooth horizontal sweep)
+// Moving Target Animation Logic (Smooth horizontal sweep)
 const movingBtn = document.getElementById('test-moving-btn');
 let animationStartTime = performance.now();
 
 function animateMovingTarget(currentTime) {
     if (!movingBtn) return;
-    const elapsed = (currentTime - animationStartTime) / 1000; // seconds
+    const elapsed = (currentTime - animationStartTime) / 1000; 
     
-    // Sine wave movement across the screen width (leaves 100px padding on edges)
     const screenWidth = window.innerWidth - 100;
     const x = Math.sin(elapsed * 1.5) * (screenWidth / 2) + (screenWidth / 2);
-    const y = 150 + Math.cos(elapsed * 0.8) * 50; // slight vertical wave
+    const y = 150 + Math.cos(elapsed * 0.8) * 50; 
 
     movingBtn.style.left = `${x}px`;
     movingBtn.style.top = `${y}px`;
@@ -478,5 +479,4 @@ function animateMovingTarget(currentTime) {
     requestAnimationFrame(animateMovingTarget);
 }
 
-// Start the moving target animation loop
 requestAnimationFrame(animateMovingTarget);
