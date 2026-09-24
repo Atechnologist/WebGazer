@@ -1,24 +1,11 @@
-name: Compile WebGazer and Deploy Pages
-
-on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -36,10 +23,27 @@ jobs:
       - name: Build the site
         run: npm run build
 
-      - name: Verify built site exists
+      - name: Materialize worker scripts
         run: |
-          test -f www/index.html || { echo "Missing www/index.html"; find . -maxdepth 2 -type f | sort; exit 1; }
-          test -f dist/webgazer.js || { echo "Missing dist/webgazer.js"; exit 1; }
+          if [ -L www/worker_scripts ]; then
+            rm www/worker_scripts
+          fi
+
+          mkdir -p www/worker_scripts
+          cp -R src/worker_scripts/. www/worker_scripts/
+
+      - name: Verify Pages output
+        run: |
+          test -f www/index.html
+          test -f www/webgazer.js
+          test -f www/worker_scripts/util.js
+          test -f www/worker_scripts/mat.js
+
+          if find www -type l -print -quit | grep -q .; then
+            echo "Error: symbolic links remain in the Pages artifact"
+            find www -type l -ls
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -48,15 +52,3 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./www
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
