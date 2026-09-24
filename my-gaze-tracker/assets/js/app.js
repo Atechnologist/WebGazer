@@ -1,4 +1,3 @@
-name=app.js
 const videoElement = document.getElementById('webcam');
 const calibDot = document.getElementById('calib-dot');
 const gazePointer = document.getElementById('gaze-pointer');
