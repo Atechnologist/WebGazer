@@ -36,7 +36,7 @@ jobs:
       - name: Build WebGazer
         run: npm run build
 
-           - name: Replace worker_scripts symlink
+      - name: Replace worker_scripts symlink
         run: |
           rm -rf www/worker_scripts
           mkdir -p www/worker_scripts
