@@ -414,3 +414,69 @@ async function triggerHardwareRelay() {
         console.error("Failed to write BLE characteristic:", err);
     }
 }
+// --- Diagnostic Testing Logic ---
+
+// 1. Fixed Target Dwell Timer Logic
+const fixedBtn = document.getElementById('test-fixed-btn');
+const statusText = document.getElementById('diagnostic-status');
+let dwellTimeAccumulator = 0;
+const requiredDwell = 800; // milliseconds required to trigger
+let lastFrameTime = performance.now();
+
+function evaluateDiagnostics(gazeX, gazaY) {
+    if (!fixedBtn) return;
+
+    const rect = fixedBtn.getBoundingClientRect();
+    const isInsideFixed = (
+        gazeX >= rect.left && gazeX <= rect.right &&
+        gazaY >= rect.top && gazaY <= rect.bottom
+    );
+
+    const now = performance.now();
+    const deltaTime = now - lastFrameTime;
+    lastFrameTime = now;
+
+    if (isInsideFixed) {
+        dwellTimeAccumulator += deltaTime;
+        const progress = Math.min(100, (dwellTimeAccumulator / requiredDwell) * 100);
+        fixedBtn.style.background = `linear-gradient(90deg, #2ed573 ${progress}%, #333 ${progress}%)`;
+        statusText.innerText = `Status: Fixating... (${Math.round(progress)}%)`;
+
+        if (dwellTimeAccumulator >= requiredDwell) {
+            statusText.innerText = "Status: SUCCESS! Fixed Target Triggered.";
+            fixedBtn.style.borderColor = "#2ed573";
+            // Optional: Reset after success
+            setTimeout(() => { dwellTimeAccumulator = 0; }, 1000);
+        }
+    } else {
+        dwellTimeAccumulator = Math.max(0, dwellTimeAccumulator - (deltaTime * 1.5)); // Decay faster when looking away
+        const progress = (dwellTimeAccumulator / requiredDwell) * 100;
+        fixedBtn.style.background = `#333`;
+        if (dwellTimeAccumulator === 0) {
+            statusText.innerText = "Status: Ready for test (Looking away)";
+            fixedBtn.style.borderColor = "#555";
+        }
+    }
+}
+
+// 2. Moving Target Animation Logic (Smooth horizontal sweep)
+const movingBtn = document.getElementById('test-moving-btn');
+let animationStartTime = performance.now();
+
+function animateMovingTarget(currentTime) {
+    if (!movingBtn) return;
+    const elapsed = (currentTime - animationStartTime) / 1000; // seconds
+    
+    // Sine wave movement across the screen width (leaves 100px padding on edges)
+    const screenWidth = window.innerWidth - 100;
+    const x = Math.sin(elapsed * 1.5) * (screenWidth / 2) + (screenWidth / 2);
+    const y = 150 + Math.cos(elapsed * 0.8) * 50; // slight vertical wave
+
+    movingBtn.style.left = `${x}px`;
+    movingBtn.style.top = `${y}px`;
+
+    requestAnimationFrame(animateMovingTarget);
+}
+
+// Start the moving target animation loop
+requestAnimationFrame(animateMovingTarget);
