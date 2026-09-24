@@ -26,12 +26,11 @@
     <div id="calib-dot" class="calib-dot" style="position: fixed; width: 30px; height: 30px; background: #ff4757; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 10001; pointer-events: none; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>
     <div id="gaze-pointer" style="position: fixed; width: 20px; height: 20px; background: rgba(0, 255, 128, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 9999; pointer-events: none;"></div>
 
-    <div class="control-group" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999; display: flex; gap: 10px; align-items: center;">
-        <div id="relay-button-target" onclick="triggerRelayCommand()" style="padding: 12px 24px; background: #d9534f; color: white; border-radius: 6px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">RELAY SWITCH [PULSE]</div>
-        <button id="settings-btn" onclick="toggleSettings()" style="padding: 10px 15px; background: #444; color: white; border: none; border-radius: 6px; cursor: pointer;">⚙️ Settings</button>
+    <div style="position: fixed; top: 20px; left: 20px; z-index: 999;">
+        <button id="settings-btn" onclick="toggleSettings()" style="padding: 10px 15px; background: #444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">⚙️ Settings</button>
     </div>
 
-    <div id="settings-panel" style="display: none; position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 20px; border-radius: 8px; z-index: 1000; color: white; font-family: sans-serif; width: 300px;">
+    <div id="settings-panel" style="display: none; position: fixed; top: 70px; left: 20px; background: rgba(0,0,0,0.9); padding: 20px; border-radius: 8px; z-index: 1000; color: white; font-family: sans-serif; width: 300px;">
         <div class="control-group" style="margin-bottom: 15px;">
             <label style="display: block; margin-bottom: 5px;">Smoothing (Jitter Fix)</label>
             <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()" style="width: 100%;">
@@ -52,22 +51,25 @@
         <div id="connectionStatus" style="font-size: 12px; margin-top: 6px; color: #aaa;">Status: Disconnected</div>
     </div>
 
-    <!-- Diagnostic Test Panel -->
-    <div id="gaze-diagnostic-panel" style="position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; z-index: 9999; font-family: sans-serif;">
-        <h3>Gaze Accuracy Diagnostics</h3>
-        <div style="margin-bottom: 10px;">
-            <button id="test-fixed-btn" style="padding: 8px 15px; background: #333; color: white; border: 2px solid #555; cursor: pointer; transition: background 0.2s;">
-                Fixed Target (Hold 1s)
+    <!-- Side-by-Side Sweet-Spot Comparison Layout (Anchored in the middle horizontal corridor) -->
+    <div id="gaze-comparison-container" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 50px; align-items: center; z-index: 9999; font-family: sans-serif;">
+        
+        <!-- 1. Fixed Target Test Element -->
+        <div style="text-align: center;">
+            <button id="test-fixed-btn" style="width: 110px; height: 110px; background: #333; color: white; border: 3px solid #555; border-radius: 50%; cursor: pointer; font-weight: bold; transition: background 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                FIXED [0%]
             </button>
+            <div id="diagnostic-status" style="color: #aaa; font-size: 11px; margin-top: 8px;">Fixed Sweet Spot</div>
         </div>
-        <div>
-            <span id="diagnostic-status" style="font-size: 12px; color: #aaa;">Status: Ready for test</span>
-        </div>
-    </div>
 
-    <!-- Stationary Test Target -->
-    <div id="test-moving-btn" style="position: fixed; top: 200px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background: #2ed573; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; z-index: 9998; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-        Test
+        <!-- 2. Sliding Assistive Relay Target Element -->
+        <div style="text-align: center;">
+            <div id="relay-button-target" onclick="triggerRelayCommand()" style="width: 130px; height: 130px; background: #d9534f; color: white; border: 3px solid #00ffcc; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; text-align: center; cursor: pointer; box-shadow: 0 4px 15px rgba(0,255,204,0.3); position: relative;">
+                RELAY SWITCH [0%]
+            </div>
+            <div style="color: #00ffcc; font-size: 11px; margin-top: 8px;">Sliding Assistive</div>
+        </div>
+
     </div>
 
     <!-- Web Bluetooth Integration Script -->
@@ -107,11 +109,11 @@
                 await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
                 const target = document.getElementById('relay-button-target');
                 target.style.background = "#2ed573";
-                target.innerText = "RELAY SENT ✅";
+                target.innerText = "💥 RELAY ACTIVE!";
                 setTimeout(() => {
                     target.style.background = "#d9534f";
-                    target.innerText = "RELAY SWITCH [PULSE]";
-                }, 1000);
+                    target.innerText = "RELAY SWITCH [0%]";
+                }, 1500);
             } catch (error) {
                 console.error("BLE Write failed, reconnecting...", error);
                 bleCharacteristic = null;
