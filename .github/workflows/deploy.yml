@@ -36,14 +36,17 @@ jobs:
       - name: Build WebGazer
         run: npm run build
 
-      - name: Replace worker_scripts symlink
+      - name: Replace symlinks in Pages artifact
         run: |
-          rm -rf www/worker_scripts
-          mkdir -p www/worker_scripts
+          staging_dir="$(mktemp -d)"
 
-          # -L follows symlinks and copies their target contents
-          cp -RL src/worker_scripts/. www/worker_scripts/
+          # Copy the complete site while dereferencing every symlink.
+          # This preserves regular files and directories but materializes
+          # symlink targets into the Pages artifact.
+          cp -aL www/. "$staging_dir/"
 
+          rm -rf www
+          mv "$staging_dir" www
       - name: Verify Pages files
         run: |
           test -f www/index.html
