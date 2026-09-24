@@ -11,59 +11,64 @@
 
     <link rel="stylesheet" href="assets/css/style.css?v=exact_match">
     <link rel="icon" href="data:,">
-
-    
 </head>
 <body>
 
-    <div id="debug-console">System Log: Downloading core engine structures...</div>
-    <video id="webcam" autoplay playsinline muted></video>
-    <canvas id="heatmap-canvas"></canvas>
-    <div id="calib-dot" class="calib-dot"></div>
-    <div id="gaze-pointer"></div>
-
-    <div class="control-group">
-        <div id="relay-button-target">RELAY SWITCH [0%]</div>
-        <button id="settings-btn" onclick="toggleSettings()">⚙️ Settings</button>
+    <!-- Core UI Overlay for Startup and Calibration Prompt -->
+    <div id="ui-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: sans-serif; text-align: center; padding: 20px;">
+        <h2 id="status-text" style="margin-bottom: 15px;">Loading core engine structures...</h2>
+        <button id="start-btn" disabled onclick="startCalibration(event)" style="padding: 12px 24px; font-size: 16px; background: #2ed573; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Start Calibration</button>
     </div>
 
-    <div id="settings-panel">
-        <div class="control-group">
-            <label>Smoothing (Jitter Fix)</label>
-            <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()">
-            <span id="smooth-val">6 frames</span>
+    <div id="debug-console" style="position: fixed; top: 10px; left: 10px; font-size: 11px; color: #00ffcc; z-index: 999; pointer-events: none;">System Log: Downloading core engine structures...</div>
+    <video id="webcam" autoplay playsinline muted style="display:none;"></video>
+    <canvas id="heatmap-canvas" style="position: fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1;"></canvas>
+    <div id="calib-dot" class="calib-dot" style="position: fixed; width: 30px; height: 30px; background: #ff4757; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 10001; pointer-events: none; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>
+    <div id="gaze-pointer" style="position: fixed; width: 20px; height: 20px; background: rgba(0, 255, 128, 0.7); border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); display: none; z-index: 9999; pointer-events: none;"></div>
+
+    <div class="control-group" style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 999; display: flex; gap: 10px; align-items: center;">
+        <div id="relay-button-target" style="padding: 10px 20px; background: #333; color: white; border-radius: 6px; font-weight: bold; cursor: default;">RELAY SWITCH [0%]</div>
+        <button id="settings-btn" onclick="toggleSettings()" style="padding: 10px 15px; background: #444; color: white; border: none; border-radius: 6px; cursor: pointer;">⚙️ Settings</button>
+    </div>
+
+    <div id="settings-panel" style="display: none; position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 20px; border-radius: 8px; z-index: 1000; color: white; font-family: sans-serif; width: 300px;">
+        <div class="control-group" style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px;">Smoothing (Jitter Fix)</label>
+            <input type="range" id="smooth-range" min="1" max="25" value="6" oninput="updateSettings()" style="width: 100%;">
+            <span id="smooth-val" style="font-size: 12px; color: #aaa;">6 frames</span>
+        </div>
+        <div class="control-group" style="margin-bottom: 15px;">
+            <label><input type="checkbox" id="invert-x-check" onchange="updateSettings()"> Invert Horizontal Map</label>
         </div>
         <div class="control-group">
-            <label>X-Axis Inversion</label>
-            <input type="checkbox" id="invert-x-check" onchange="updateSettings()"> Invert Horizontal Map
-        </div>
-        <div class="control-group">
-            <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; margin-bottom:15px;">Clear Heatmap</button>
-        </div>
-        <div id="ble-control-panel" style="position: fixed; top: 20px; right: 20px; z-index: 9999; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; color: #fff; font-family: sans-serif;">
-            <button id="bleConnectBtn" onclick="connectBLE()" style="background: #007aff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-            Pair Atom Lite (BLE)
-            </button>
-            <div id="connectionStatus" style="font-size: 12px; margin-top: 6px; color: #aaa;">Status: Disconnected</div>
+            <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; border:none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom:5px;">Clear Heatmap</button>
         </div>
     </div>
-    <!-- Diagnostic Test Panel -->
-<div id="gaze-diagnostic-panel" style="position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; z-index: 9999; font-family: sans-serif;">
-    <h3>Gaze Accuracy Diagnostics</h3>
-    <div style="margin-bottom: 10px;">
-        <button id="test-fixed-btn" style="padding: 8px 15px; background: #333; color: white; border: 2px solid #555; cursor: pointer; transition: background 0.2s;">
-            Fixed Target (Hold 1s)
+
+    <div id="ble-control-panel" style="position: fixed; top: 20px; right: 20px; z-index: 9999; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; color: #fff; font-family: sans-serif;">
+        <button id="bleConnectBtn" onclick="connectBLE()" style="background: #007aff; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+        Pair Atom Lite (BLE)
         </button>
+        <div id="connectionStatus" style="font-size: 12px; margin-top: 6px; color: #aaa;">Status: Disconnected</div>
     </div>
-    <div>
-        <span id="diagnostic-status" style="font-size: 12px; color: #aaa;">Status: Ready for test</span>
-    </div>
-</div>
 
-<!-- Stationary Test Target -->
-<div id="test-moving-btn" style="position: fixed; top: 200px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background: #2ed573; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; z-index: 9998; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-    Test
-</div>
+    <!-- Diagnostic Test Panel -->
+    <div id="gaze-diagnostic-panel" style="position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; z-index: 9999; font-family: sans-serif;">
+        <h3>Gaze Accuracy Diagnostics</h3>
+        <div style="margin-bottom: 10px;">
+            <button id="test-fixed-btn" style="padding: 8px 15px; background: #333; color: white; border: 2px solid #555; cursor: pointer; transition: background 0.2s;">
+                Fixed Target (Hold 1s)
+            </button>
+        </div>
+        <div>
+            <span id="diagnostic-status" style="font-size: 12px; color: #aaa;">Status: Ready for test</span>
+        </div>
+    </div>
+
+    <!-- Stationary Test Target -->
+    <div id="test-moving-btn" style="position: fixed; top: 200px; left: 50%; transform: translateX(-50%); width: 60px; height: 60px; background: #2ed573; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; z-index: 9998; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+        Test
+    </div>
 
     <script src="assets/js/app.js?v=exact_match"></script>
 </body>
