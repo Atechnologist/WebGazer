@@ -459,23 +459,3 @@ function evaluateDiagnostics(gazeX, gazeY) {
         }
     }
 }
-
-// Moving Target Animation Logic (Smooth horizontal sweep)
-const movingBtn = document.getElementById('test-moving-btn');
-let animationStartTime = performance.now();
-
-function animateMovingTarget(currentTime) {
-    if (!movingBtn) return;
-    const elapsed = (currentTime - animationStartTime) / 1000; 
-    
-    const screenWidth = window.innerWidth - 100;
-    const x = Math.sin(elapsed * 1.5) * (screenWidth / 2) + (screenWidth / 2);
-    const y = 150 + Math.cos(elapsed * 0.8) * 50; 
-
-    movingBtn.style.left = `${x}px`;
-    movingBtn.style.top = `${y}px`;
-
-    requestAnimationFrame(animateMovingTarget);
-}
-
-requestAnimationFrame(animateMovingTarget);
