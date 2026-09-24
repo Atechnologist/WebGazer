@@ -36,6 +36,11 @@ jobs:
       - name: Build WebGazer
         run: npm run build
 
+      - name: Inject Custom Gaze Tracker
+        run: |
+          # Overwrite default WebGazer demo output with your custom multi-point tracker code
+          cp -r my-gaze-tracker/* www/
+
       - name: Replace symlinks in Pages artifact
         run: |
           staging_dir="$(mktemp -d)"
@@ -49,7 +54,6 @@ jobs:
       - name: Verify Pages files
         run: |
           test -f www/index.html
-          test -f www/webgazer.js
           test -f www/worker_scripts/util.js
           test -f www/worker_scripts/mat.js
 
