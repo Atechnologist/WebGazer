@@ -1,10 +1,10 @@
-# .github/workflows/pages.yml
-name: Deploy to GitHub Pages
+name: Compile WebGazer and Deploy Pages
 
 on:
   push:
     branches:
       - main
+      - master
   workflow_dispatch:
 
 permissions:
@@ -21,27 +21,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build WebGazer
+      - name: Build the site
         run: npm run build
 
-      - name: Verify Pages output
+      - name: Verify built site exists
         run: |
-          test -f www/index.html
-          test -f www/webgazer.js
-          test -d www/mediapipe
-          find www -maxdepth 2 -type f | sort | head -100
+          test -f www/index.html || { echo "Missing www/index.html"; find . -maxdepth 2 -type f | sort; exit 1; }
+          test -f dist/webgazer.js || { echo "Missing dist/webgazer.js"; exit 1; }
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
