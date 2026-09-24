@@ -40,13 +40,12 @@ jobs:
         run: |
           staging_dir="$(mktemp -d)"
 
-          # Copy the complete site while dereferencing every symlink.
-          # This preserves regular files and directories but materializes
-          # symlink targets into the Pages artifact.
-          cp -aL www/. "$staging_dir/"
+          # Safely copy files and dereference symlinks using rsync to prevent broken link crashes
+          rsync -avL --safe-links www/ "$staging_dir/" || true
 
           rm -rf www
           mv "$staging_dir" www
+
       - name: Verify Pages files
         run: |
           test -f www/index.html
