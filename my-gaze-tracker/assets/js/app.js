@@ -15,22 +15,25 @@ const ctx = heatmapCanvas.getContext('2d');
 
 // Gravity Well Dynamic Positioning State
 let gravityBuffer = [];
-const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
+const gravityWindowSize = 90; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
 // Dwell Capacitor & Trigger State Properties
-let dwellProgress = 0;       // 0 to 100%
+let dwellProgress = 0;       
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 2.5; // Speed of filling per frame
-const dwellDrainRate = 1.5;  // Speed of draining when looking away
+const dwellChargeRate = 2.5; 
+const dwellDrainRate = 1.5;  
 
 // Core Architecture Properties
 let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
+let calibrationMode = 5; // Configurable: change to 9 for 9-point calibration
+let screenTargets = [];
+let calibrationSamples = []; // Replaces rigid 4-point eyeGrid
 
 // Custom Configuration Parameters State
 let smoothingFrames = 6;
@@ -88,31 +91,47 @@ class OneEuroFilter {
     }
 }
 
-// Initialize individual filters globally for X and Y coordinate mapping streams (~60fps base)
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-// Interactive Percentage Inset Coordinates 
-const screenTargets = [
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
-];
+// Setup multi-point calibration layout
+function setupCalibrationTargets(mode = 5) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const padX = w * 0.15;
+    const padY = h * 0.15;
 
-// Linear Algebra Mapping Interpolation Matrix Grid Coordinates
-let eyeGrid = { tl: null, tr: null, bl: null, br: null };
-const smoothingBuffer = [];
+    if (mode === 5) {
+        screenTargets = [
+            { x: padX, y: padY },                 // Top-Left
+            { x: w - padX, y: padY },             // Top-Right
+            { x: w / 2, y: h / 2 },               // Center
+            { x: padX, y: h - padY },             // Bottom-Left
+            { x: w - padX, y: h - padY }          // Bottom-Right
+        ];
+    } else {
+        screenTargets = [
+            { x: padX, y: padY },                 // Top-Left
+            { x: w / 2, y: padY },               // Top-Center
+            { x: w - padX, y: padY },             // Top-Right
+            { x: padX, y: h / 2 },               // Mid-Left
+            { x: w / 2, y: h / 2 },               // Center
+            { x: w - padX, y: h / 2 },           // Mid-Right
+            { x: padX, y: h - padY },             // Bottom-Left
+            { x: w / 2, y: h - padY },           // Bottom-Center
+            { x: w - padX, y: h - padY }          // Bottom-Right
+        ];
+    }
+}
 
 function log(msg) { debugLog.innerText = "System Log: " + msg; }
 
-// Window Size Adaptability Adjuster Configuration
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
+    setupCalibrationTargets(calibrationMode);
 });
 
-// Settings Control Panel Interactivity Listeners
 window.updateSettings = function() {
     smoothingFrames = parseInt(smoothRange.value);
     smoothVal.innerText = `${smoothingFrames} frames`;
@@ -130,25 +149,22 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-// Initialisation Pipeline Routine Execution
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
+        setupCalibrationTargets(calibrationMode);
 
-        log("Evaluating legacy TensorFlow engine deployment...");
+        log("Evaluating TensorFlow engine deployment...");
         if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
             throw new Error("Core script files blocked by network rules.");
         }
         
-        log("Booting hardware web acceleration backend...");
         await tf.ready();
         log(`Active Engine Backend: ${tf.getBackend()}`);
         
-        log("Downloading neural face mesh patterns...");
         model = await facemesh.load({ maxFaces: 1 });
         
-        log("Connecting to front video stream feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -157,7 +173,7 @@ async function initSystem() {
         
         videoElement.onloadedmetadata = () => {
             log("Camera pipeline active. Application verified.");
-            statusText.innerText = "Hold your tablet or phone steady";
+            statusText.innerText = "Hold steady and click Start Calibration";
             startBtn.disabled = false;
             trackFrameLoop();
         };
@@ -168,18 +184,13 @@ async function initSystem() {
     }
 }
 
-// Processing Execution Tracking Context Frames Loop
 async function trackFrameLoop() {
     if (model && videoElement.readyState >= 2) {
         try {
             const predictions = await model.estimateFaces(videoElement);
             
-            if (predictions.length === 0) {
-                log("Searching for tracking profile context...");
-            } else {
+            if (predictions.length > 0) {
                 const mesh = predictions[0].scaledMesh;
-                
-                // Stable fallback landmark matrices (indices 33, 133, 159)
                 const outer = mesh[33]; 
                 const inner = mesh[133];
                 const iris = mesh[159]; 
@@ -196,8 +207,6 @@ async function trackFrameLoop() {
 
                     if (isCalibrated) {
                         processGazeMapping(currentFeatures[0], currentFeatures[1]);
-                    } else {
-                        log("Tracking operational. Ready to calibrate.");
                     }
                 }
             }
@@ -209,86 +218,100 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    if (event) event.stopPropagation(); // Blocks button event bubbling down to first dot
+    if (event) event.stopPropagation();
     
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
     isCalibrated = false;
+    calibrationSamples = []; // Reset dataset storage
     showNextCalibrationDot();
 };
 
 function showNextCalibrationDot() {
-    if (calibrationStep < 4) {
+    if (calibrationStep < screenTargets.length) {
         calibDot.style.display = 'block';
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-        log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
+        log(`Displaying calibration point ${calibrationStep + 1} of ${screenTargets.length}`);
     } else {
         calibDot.style.display = 'none';
         document.getElementById('ui-overlay').style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
-        
-        // --- WAKE UP THE RELAY BUTTON ---
         relayTarget.classList.add('active-ready');
-        
-        log("System Gaze Processing active.");
+        log("Calibration complete. Gaze tracking active.");
     }
 }
-// Capturing Interactive Event Trigger Maps
+
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
-    if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
+    if (calibrationStep >= screenTargets.length || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest('#settings-panel')) return;
-    if (!currentFeatures) return; // Drop capture inputs if the tracking context is missing
+    if (!currentFeatures) return;
 
-    const keys = ['tl', 'tr', 'bl', 'br'];
-    eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
+    const target = screenTargets[calibrationStep];
+    calibrationSamples.push({
+        targetX: target.x,
+        targetY: target.y,
+        featureX: currentFeatures[0],
+        featureY: currentFeatures[1]
+    });
     
-    log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
+    log(`Captured Calibration Sample ${calibrationStep + 1}`);
     calibrationStep++;
     showNextCalibrationDot();
 });
 
-// Mathematical Coordinate Normalization Transformation Layer Map Engine
+// Robust Weighted Regression Mapping (Inverse Distance Weighting) for multi-point targets
 function processGazeMapping(ex, ey, timestamp) {
-    const { tl, tr, bl, br } = eyeGrid;
+    if (calibrationSamples.length === 0) return;
 
-    let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
-    let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
+    let totalWeight = 0;
+    let sumX = 0;
+    let sumY = 0;
+    const p = 2.0; // Distance decay power
 
-    if (invertX) {
-        tx = 1 - tx;
+    for (let sample of calibrationSamples) {
+        const dx = ex - sample.featureX;
+        const dy = ey - sample.featureY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist === 0) {
+            sumX = sample.targetX;
+            sumY = sample.targetY;
+            totalWeight = 1;
+            break;
+        }
+
+        const weight = 1 / Math.pow(dist, p);
+        totalWeight += weight;
+        sumX += sample.targetX * weight;
+        sumY += sample.targetY * weight;
     }
 
-    const u = Math.max(0, Math.min(1, tx));
-    const v = Math.max(0, Math.min(1, ty));
+    let targetX = sumX / totalWeight;
+    let targetY = sumY / totalWeight;
 
-    let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+    if (invertX) {
+        targetX = window.innerWidth - targetX;
+    }
 
-    // Pass through One-Euro Filter
     const avgX = filterX.filter(targetX, timestamp);
     const avgY = filterY.filter(targetY, timestamp);
 
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- GRAVITY WELL DYNAMIC REPOSITIONING ---
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
-        gravityBuffer.shift(); // Keep buffer fixed size
-        
-        // Calculate center of mass of natural gaze
+        gravityBuffer.shift();
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Smoothly interpolate relay button position toward the gaze center of mass
         relayX += (centerMassX - relayX) * 0.05;
         relayY += (centerMassY - relayY) * 0.05;
         
-        // Apply new coordinates to the floating relay button
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
     }
@@ -296,6 +319,7 @@ function processGazeMapping(ex, ey, timestamp) {
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
 }
+
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
@@ -315,16 +339,13 @@ function checkRelayActivation(gazeX, gazeY) {
     );
 
     if (isGazing) {
-        // Charge the capacitor smoothly
         dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
         relayTarget.classList.add('gaze-hover');
     } else {
-        // Slowly drain when looking away
         dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
         relayTarget.classList.remove('gaze-hover');
     }
 
-    // <--- IT GOES RIGHT HERE: --->
     if (dwellProgress >= 100 && !isTriggered) {
         isTriggered = true;
         isCoolingDown = true;
@@ -334,17 +355,15 @@ function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = "💥 RELAY ACTIVE!";
         log("Relay trigger fired successfully!");
 
-        // Dispatch the ESPHome hardware webhook
         triggerHardwareRelay();
 
-        // 2.5-second cooldown and reset loop
         setTimeout(() => {
             dwellProgress = 0;
             isTriggered = false;
             isCoolingDown = false;
             relayTarget.classList.remove('triggered');
             relayTarget.innerText = "RELAY SWITCH [0%]";
-            log("Relay capacitor reset. Ready for next test.");
+            log("Relay capacitor reset.");
         }, 2500);
     } else if (!isTriggered) {
         const percent = Math.floor(dwellProgress);
@@ -356,26 +375,8 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-async function triggerHardwareRelay() {
-    try {
-        // Fire-and-forget request using an invisible image beacon or fetch with no-cors
-        // Browsers permit mixed-content 'no-cors' requests for simple triggers on local networks
-        const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
-        
-        // Method A: Image ping technique (bypasses mixed-content block in most chromium browsers)
-        const img = new Image();
-        img.src = `${targetUrl}?timestamp=${Date.now()}`;
-        
-        log("Hardware webhook dispatched via beacon.");
-    } catch (err) {
-        log("Webhook Error: Failed to reach ESPHome device.");
-        console.error(err);
-    }
-}
-
 let bleDevice, bleCharacteristic;
 
-// 1. Connect function (must be tied to a user click event for browser security permissions)
 async function connectBLE() {
     try {
         const statusEl = document.getElementById('connectionStatus');
@@ -399,7 +400,6 @@ async function connectBLE() {
     }
 }
 
-// 2. Trigger function called when dwell capacitor reaches 100%
 async function triggerHardwareRelay() {
     if (!bleCharacteristic) {
         console.warn("BLE not connected. Please pair device first.");
