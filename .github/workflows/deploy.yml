@@ -36,14 +36,13 @@ jobs:
       - name: Build WebGazer
         run: npm run build
 
-      - name: Replace worker_scripts symlink
+           - name: Replace worker_scripts symlink
         run: |
-          if [ -L www/worker_scripts ]; then
-            rm www/worker_scripts
-          fi
-
+          rm -rf www/worker_scripts
           mkdir -p www/worker_scripts
-          cp -R src/worker_scripts/. www/worker_scripts/
+
+          # -L follows symlinks and copies their target contents
+          cp -RL src/worker_scripts/. www/worker_scripts/
 
       - name: Verify Pages files
         run: |
@@ -51,6 +50,20 @@ jobs:
           test -f www/webgazer.js
           test -f www/worker_scripts/util.js
           test -f www/worker_scripts/mat.js
+
+          # GitHub Pages artifacts should not contain symlinks
+          if find www -type l -print -quit | grep -q .; then
+            echo "Error: www contains symlinks:"
+            find www -type l -ls
+            exit 1
+          fi
+
+          # Detect broken links before the upload action runs
+          if find -L www -type l -print -quit | grep -q .; then
+            echo "Error: www contains broken symlinks:"
+            find -L www -type l -ls
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
