@@ -287,21 +287,21 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // Fluid Gaze Tracking: Follows your eyes anywhere on screen with boundary safety
+    // Stable Gaze Following with Strict Viewport Containment
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
         gravityBuffer.shift();
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Smoothly glide the relay button directly toward where your gaze is pointing
-        relayX += (centerMassX - relayX) * 0.06;
-        relayY += (centerMassY - relayY) * 0.06;
+        // Gentle tracking factor prevents violent jumps off-screen
+        relayX += (centerMassX - relayX) * 0.05;
+        relayY += (centerMassY - relayY) * 0.05;
 
-        // Strict safety clamping: Keeps the button visible within screen bounds (40px margin)
-        const margin = 40;
-        relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
-        relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
+        // Hard boundary limits: Ensures the button stays fully visible inside the window
+        const padding = 60;
+        relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
+        relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
         
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
@@ -410,3 +410,16 @@ function evaluateDiagnostics(gazeX, gazeY) {
         }
     }
 }
+window.toggleElementVisibility = function() {
+    const showSlider = document.getElementById('toggle-slider').checked;
+    const showFixed = document.getElementById('toggle-fixed').checked;
+    
+    relayTarget.style.display = showSlider ? 'flex' : 'none';
+    
+    const fixedContainer = document.getElementById('test-fixed-btn').parentElement;
+    if (fixedContainer) {
+        fixedContainer.style.display = showFixed ? 'block' : 'none';
+    }
+    
+    log(`Visibility updated: Slider=${showSlider}, FixedTarget=${showFixed}`);
+};
