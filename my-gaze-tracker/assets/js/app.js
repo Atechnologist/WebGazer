@@ -13,25 +13,25 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State
+// Gravity Well Dynamic Positioning State (Constrained to Sweet Spot)
 let gravityBuffer = [];
-const gravityWindowSize = 90; 
+const gravityWindowSize = 45; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
-// Dwell Capacitor & Trigger State Properties (Balanced to prevent drift triggers)
-let dwellProgress = 0;       
+// Dwell Capacitor & Trigger State Properties
+let dwellProgress = 0;        
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 1.2; // Slower fill rate requires intentional fixation
-const dwellDrainRate = 3.0;  // Fast drain rate instantly clears accidental jitter
+const dwellChargeRate = 1.2; 
+const dwellDrainRate = 3.0;  
 
 // Core Architecture Properties
 let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
-let calibrationMode = 5; // Configurable: change to 9 for 9-point calibration
+let calibrationMode = 5; 
 let screenTargets = [];
 let calibrationSamples = []; 
 
@@ -94,7 +94,6 @@ class OneEuroFilter {
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-// Setup multi-point calibration layout (Reading order: Top-Left -> Top-Right -> Center -> Bottom-Left -> Bottom-Right)
 function setupCalibrationTargets(mode = 5) {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -103,28 +102,16 @@ function setupCalibrationTargets(mode = 5) {
 
     if (mode === 5) {
         screenTargets = [
-            { x: padX, y: padY },                 // 1. Top-Left
-            { x: w - padX, y: padY },             // 2. Top-Right
-            { x: w / 2, y: h / 2 },               // 3. Center
-            { x: padX, y: h - padY },             // 4. Bottom-Left
-            { x: w - padX, y: h - padY }          // 5. Bottom-Right
-        ];
-    } else {
-        screenTargets = [
-            { x: padX, y: padY },                 // Top-Left
-            { x: w / 2, y: padY },               // Top-Center
-            { x: w - padX, y: padY },             // Top-Right
-            { x: padX, y: h / 2 },               // Mid-Left
-            { x: w / 2, y: h / 2 },               // Center
-            { x: w - padX, y: h / 2 },           // Mid-Right
-            { x: padX, y: h - padY },             // Bottom-Left
-            { x: w / 2, y: h - padY },           // Bottom-Center
-            { x: w - padX, y: h - padY }          // Bottom-Right
+            { x: padX, y: padY },               // 1. Top-Left
+            { x: w - padX, y: padY },           // 2. Top-Right
+            { x: w / 2, y: h / 2 },             // 3. Center
+            { x: padX, y: h - padY },           // 4. Bottom-Left
+            { x: w - padX, y: h - padY }        // 5. Bottom-Right
         ];
     }
 }
 
-function log(msg) { debugLog.innerText = "System Log: " + msg; }
+function log(msg) { if (debugLog) debugLog.innerText = "System Log: " + msg; }
 
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
@@ -220,7 +207,7 @@ async function trackFrameLoop() {
 window.startCalibration = function(event) {
     if (event) event.stopPropagation();
     
-    startBtn.style.display = 'none';
+    document.getElementById('ui-overlay').style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
     isCalibrated = false;
@@ -236,10 +223,8 @@ function showNextCalibrationDot() {
         log(`Displaying calibration point ${calibrationStep + 1} of ${screenTargets.length}`);
     } else {
         calibDot.style.display = 'none';
-        document.getElementById('ui-overlay').style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
-        relayTarget.classList.add('active-ready');
         log("Calibration complete. Gaze tracking active.");
     }
 }
@@ -263,7 +248,6 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
-// Robust Weighted Regression Mapping (Inverse Distance Weighting)
 function processGazeMapping(ex, ey, timestamp) {
     if (calibrationSamples.length === 0) return;
 
@@ -303,23 +287,25 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
+    // Smart Assistive Sliding Button: Glide toward gaze only when close, freeze on target
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
         gravityBuffer.shift();
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        relayX += (centerMassX - relayX) * 0.05;
-        relayY += (centerMassY - relayY) * 0.05;
-        
-        relayTarget.style.left = `${relayX}px`;
-        relayTarget.style.top = `${relayY}px`;
+        const distToGaze = Math.hypot(centerMassX - relayX, centerMassY - relayY);
+        if (distToGaze < 300 && distToGaze > 30 && !isTriggered) {
+            relayX += (centerMassX - relayX) * 0.04;
+            relayY += (centerMassY - relayY) * 0.04;
+            
+            relayTarget.style.left = `${relayX}px`;
+            relayTarget.style.top = `${relayY}px`;
+        }
     }
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
-    
-    // Evaluate live diagnostics seamlessly in loop
     evaluateDiagnostics(avgX, avgY);
 }
 
@@ -358,7 +344,9 @@ function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = "💥 RELAY ACTIVE!";
         log("Relay trigger fired successfully!");
 
-        triggerHardwareRelay();
+        if (typeof triggerRelayCommand === 'function') {
+            triggerRelayCommand();
+        }
 
         setTimeout(() => {
             dwellProgress = 0;
@@ -378,47 +366,7 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-let bleDevice, bleCharacteristic;
-
-async function connectBLE() {
-    try {
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) statusEl.innerText = "Status: Scanning...";
-
-        bleDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'atom-relay-node' }],
-            optionalServices: ['12345678-1234-1234-1234-1234567890ab']
-        });
-
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService('12345678-1234-1234-1234-1234567890ab');
-        bleCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-ba9876543210');
-
-        if (statusEl) statusEl.innerText = "Status: Connected";
-        console.log("Connected to Atom Lite via BLE");
-    } catch (err) {
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) statusEl.innerText = "Status: Failed";
-        console.error("BLE Connection error:", err);
-    }
-}
-
-async function triggerHardwareRelay() {
-    if (!bleCharacteristic) {
-        console.warn("BLE not connected. Please pair device first.");
-        return;
-    }
-
-    try {
-        const encoder = new TextEncoder();
-        await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
-        console.log("💥 Relay trigger command sent over BLE");
-    } catch (err) {
-        console.error("Failed to write BLE characteristic:", err);
-    }
-}
-
-// --- Diagnostic Testing Logic ---
+// --- Diagnostic Testing Logic (Fixed Target Comparison) ---
 
 const fixedBtn = document.getElementById('test-fixed-btn');
 const diagnosticStatusText = document.getElementById('diagnostic-status');
