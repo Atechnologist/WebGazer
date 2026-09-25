@@ -287,21 +287,24 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // Smart Assistive Sliding Button: Glide toward gaze only when close, freeze on target
+    // Fluid Gaze Tracking: Follows your eyes anywhere on screen with boundary safety
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
         gravityBuffer.shift();
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        const distToGaze = Math.hypot(centerMassX - relayX, centerMassY - relayY);
-        if (distToGaze < 300 && distToGaze > 30 && !isTriggered) {
-            relayX += (centerMassX - relayX) * 0.04;
-            relayY += (centerMassY - relayY) * 0.04;
-            
-            relayTarget.style.left = `${relayX}px`;
-            relayTarget.style.top = `${relayY}px`;
-        }
+        // Smoothly glide the relay button directly toward where your gaze is pointing
+        relayX += (centerMassX - relayX) * 0.06;
+        relayY += (centerMassY - relayY) * 0.06;
+
+        // Strict safety clamping: Keeps the button visible within screen bounds (40px margin)
+        const margin = 40;
+        relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
+        relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
+        
+        relayTarget.style.left = `${relayX}px`;
+        relayTarget.style.top = `${relayY}px`;
     }
 
     renderHeatmapFootprint(avgX, avgY);
