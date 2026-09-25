@@ -287,25 +287,21 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // Stable Gaze Following with Strict Viewport Containment
-    gravityBuffer.push({ x: avgX, y: avgY });
-    if (gravityBuffer.length >= gravityWindowSize) {
-        gravityBuffer.shift();
-        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
-        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
-        
-        // Gentle tracking factor prevents violent jumps off-screen
-        relayX += (centerMassX - relayX) * 0.05;
-        relayY += (centerMassY - relayY) * 0.05;
+    // Responsive Direct Gaze Following (Eliminates lag while keeping safe padding)
+    const targetSnapX = avgX;
+    const targetSnapY = avgY;
 
-        // Hard boundary limits: Ensures the button stays fully visible inside the window
-        const padding = 60;
-        relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
-        relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
-        
-        relayTarget.style.left = `${relayX}px`;
-        relayTarget.style.top = `${relayY}px`;
-    }
+    // Fast, responsive smoothing (higher lerp factor = tracks eyes tightly without sluggish lag)
+    relayX += (targetSnapX - relayX) * 0.25;
+    relayY += (targetSnapY - relayY) * 0.25;
+
+    // Strict boundary safety clamping
+    const padding = 60;
+    relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
+    relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
+    
+    relayTarget.style.left = `${relayX}px`;
+    relayTarget.style.top = `${relayY}px`;
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
