@@ -207,12 +207,18 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    if (event) event.stopPropagation(); 
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
     
-    startBtn.style.display = 'none';
+    // Hide just the start button and status text inside the overlay, keeping the container intact
+    if (startBtn) startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
+    
     calibrationStep = 0;
     isCalibrated = false;
+    eyeGrid = { tl: null, tr: null, bl: null, br: null }; // Reset grid
     showNextCalibrationDot();
 };
 
@@ -224,7 +230,11 @@ function showNextCalibrationDot() {
         log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
     } else {
         calibDot.style.display = 'none';
-        document.getElementById('ui-overlay').style.display = 'none';
+        
+        // Safely hide the entire UI overlay once calibration concludes
+        const overlay = document.getElementById('ui-overlay');
+        if (overlay) overlay.style.display = 'none';
+        
         isCalibrated = true;
         gazePointer.style.display = 'block';
         relayTarget.classList.add('active-ready');
