@@ -13,27 +13,24 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State (Constrained to Sweet Spot)
+// Gravity Well Dynamic Positioning State (Stable 4-Corner Setup with Boundary Clamping)
 let gravityBuffer = [];
-const gravityWindowSize = 45; 
+const gravityWindowSize = 60; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
 // Dwell Capacitor & Trigger State Properties
-let dwellProgress = 0;        
+let dwellProgress = 0;       
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 1.2; 
-const dwellDrainRate = 3.0;  
+const dwellChargeRate = 2.5; 
+const dwellDrainRate = 1.5;  
 
 // Core Architecture Properties
 let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
-let calibrationMode = 5; 
-let screenTargets = [];
-let calibrationSamples = []; 
 
 // Custom Configuration Parameters State
 let smoothingFrames = 6;
@@ -94,29 +91,21 @@ class OneEuroFilter {
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-function setupCalibrationTargets(mode = 5) {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const padX = w * 0.15;
-    const padY = h * 0.15;
+// Classic 4-Corner Target Insets
+const screenTargets = [
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
+];
 
-    if (mode === 5) {
-        screenTargets = [
-            { x: padX, y: padY },               // 1. Top-Left
-            { x: w - padX, y: padY },           // 2. Top-Right
-            { x: w / 2, y: h / 2 },             // 3. Center
-            { x: padX, y: h - padY },           // 4. Bottom-Left
-            { x: w - padX, y: h - padY }        // 5. Bottom-Right
-        ];
-    }
-}
+let eyeGrid = { tl: null, tr: null, bl: null, br: null };
 
-function log(msg) { if (debugLog) debugLog.innerText = "System Log: " + msg; }
+function log(msg) { if(debugLog) debugLog.innerText = "System Log: " + msg; }
 
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
-    setupCalibrationTargets(calibrationMode);
 });
 
 window.updateSettings = function() {
@@ -136,11 +125,24 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
+// Toggle visibility for individual elements via Settings Panel
+window.toggleElementVisibility = function() {
+    const showSlider = document.getElementById('toggle-slider')?.checked ?? true;
+    const showFixed = document.getElementById('toggle-fixed')?.checked ?? true;
+    
+    relayTarget.style.display = showSlider ? 'flex' : 'none';
+    
+    const fixedContainer = document.getElementById('test-fixed-btn')?.parentElement;
+    if (fixedContainer) {
+        fixedContainer.style.display = showFixed ? 'block' : 'none';
+    }
+    log(`Visibility updated: Slider=${showSlider}, FixedTarget=${showFixed}`);
+};
+
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
-        setupCalibrationTargets(calibrationMode);
 
         log("Evaluating TensorFlow engine deployment...");
         if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
@@ -160,7 +162,7 @@ async function initSystem() {
         
         videoElement.onloadedmetadata = () => {
             log("Camera pipeline active. Application verified.");
-            statusText.innerText = "Hold steady and click Start Calibration";
+            statusText.innerText = "Hold your device steady";
             startBtn.disabled = false;
             trackFrameLoop();
         };
@@ -205,81 +207,61 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    if (event) event.stopPropagation();
+    if (event) event.stopPropagation(); 
     
-    document.getElementById('ui-overlay').style.display = 'none';
+    startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
     isCalibrated = false;
-    calibrationSamples = []; 
     showNextCalibrationDot();
 };
 
 function showNextCalibrationDot() {
-    if (calibrationStep < screenTargets.length) {
+    if (calibrationStep < 4) {
         calibDot.style.display = 'block';
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-        log(`Displaying calibration point ${calibrationStep + 1} of ${screenTargets.length}`);
+        log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
     } else {
         calibDot.style.display = 'none';
+        document.getElementById('ui-overlay').style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
-        log("Calibration complete. Gaze tracking active.");
+        relayTarget.classList.add('active-ready');
+        log("System Gaze Processing active.");
     }
 }
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
-    if (calibrationStep >= screenTargets.length || isCalibrated || calibDot.style.display === 'none') return;
+    if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest('#settings-panel')) return;
     if (!currentFeatures) return;
 
-    const target = screenTargets[calibrationStep];
-    calibrationSamples.push({
-        targetX: target.x,
-        targetY: target.y,
-        featureX: currentFeatures[0],
-        featureY: currentFeatures[1]
-    });
+    const keys = ['tl', 'tr', 'bl', 'br'];
+    eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
     
-    log(`Captured Calibration Sample ${calibrationStep + 1}`);
+    log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
     calibrationStep++;
     showNextCalibrationDot();
 });
 
 function processGazeMapping(ex, ey, timestamp) {
-    if (calibrationSamples.length === 0) return;
+    const { tl, tr, bl, br } = eyeGrid;
+    if (!tl || !tr || !bl || !br) return;
 
-    let totalWeight = 0;
-    let sumX = 0;
-    let sumY = 0;
-    const p = 2.0; 
-
-    for (let sample of calibrationSamples) {
-        const dx = ex - sample.featureX;
-        const dy = ey - sample.featureY;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist === 0) {
-            sumX = sample.targetX;
-            sumY = sample.targetY;
-            totalWeight = 1;
-            break;
-        }
-
-        const weight = 1 / Math.pow(dist, p);
-        totalWeight += weight;
-        sumX += sample.targetX * weight;
-        sumY += sample.targetY * weight;
-    }
-
-    let targetX = sumX / totalWeight;
-    let targetY = sumY / totalWeight;
+    let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
+    let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
 
     if (invertX) {
-        targetX = window.innerWidth - targetX;
+        tx = 1 - tx;
     }
+
+    const u = Math.max(0, Math.min(1, tx));
+    const v = Math.max(0, Math.min(1, ty));
+
+    let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
+    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
 
     const avgX = filterX.filter(targetX, timestamp);
     const avgY = filterY.filter(targetY, timestamp);
@@ -287,21 +269,25 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // Responsive Direct Gaze Following (Eliminates lag while keeping safe padding)
-    const targetSnapX = avgX;
-    const targetSnapY = avgY;
+    // --- SMOOTH GRAVITY WELL WITH SAFE BOUNDARY CLAMPING ---
+    gravityBuffer.push({ x: avgX, y: avgY });
+    if (gravityBuffer.length >= gravityWindowSize) {
+        gravityBuffer.shift(); 
+        
+        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
+        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
+        
+        relayX += (centerMassX - relayX) * 0.08;
+        relayY += (centerMassY - relayY) * 0.08;
+        
+        // Strict boundary protection so the slider never runs off-screen
+        const padding = 50;
+        relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
+        relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
 
-    // Fast, responsive smoothing (higher lerp factor = tracks eyes tightly without sluggish lag)
-    relayX += (targetSnapX - relayX) * 0.25;
-    relayY += (targetSnapY - relayY) * 0.25;
-
-    // Strict boundary safety clamping
-    const padding = 60;
-    relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
-    relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
-    
-    relayTarget.style.left = `${relayX}px`;
-    relayTarget.style.top = `${relayY}px`;
+        relayTarget.style.left = `${relayX}px`;
+        relayTarget.style.top = `${relayY}px`;
+    }
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
@@ -343,9 +329,7 @@ function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = "💥 RELAY ACTIVE!";
         log("Relay trigger fired successfully!");
 
-        if (typeof triggerRelayCommand === 'function') {
-            triggerRelayCommand();
-        }
+        triggerHardwareRelay();
 
         setTimeout(() => {
             dwellProgress = 0;
@@ -365,8 +349,55 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- Diagnostic Testing Logic (Fixed Target Comparison) ---
+// --- HARDWARE & BLE INTEGRATION ---
+let bleDevice, bleCharacteristic;
 
+async function connectBLE() {
+    try {
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) statusEl.innerText = "Status: Scanning...";
+
+        bleDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'atom-relay-node' }],
+            optionalServices: ['12345678-1234-1234-1234-1234567890ab']
+        });
+
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService('12345678-1234-1234-1234-1234567890ab');
+        bleCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-ba9876543210');
+
+        if (statusEl) statusEl.innerText = "Status: Connected";
+        console.log("Connected to Atom Lite via BLE");
+    } catch (err) {
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) statusEl.innerText = "Status: Failed";
+        console.error("BLE Connection error:", err);
+    }
+}
+
+async function triggerHardwareRelay() {
+    if (bleCharacteristic) {
+        try {
+            const encoder = new TextEncoder();
+            await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
+            console.log("💥 Relay trigger command sent over BLE");
+            return;
+        } catch (err) {
+            console.error("BLE write failed, trying web fallback:", err);
+        }
+    }
+    
+    try {
+        const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
+        const img = new Image();
+        img.src = `${targetUrl}?timestamp=${Date.now()}`;
+        log("Hardware webhook dispatched via beacon.");
+    } catch (err) {
+        log("Webhook Error: Failed to reach ESPHome device.");
+    }
+}
+
+// --- FIXED DIAGNOSTIC TEST BUTTON LOGIC ---
 const fixedBtn = document.getElementById('test-fixed-btn');
 const diagnosticStatusText = document.getElementById('diagnostic-status');
 let dwellTimeAccumulator = 0;
@@ -374,7 +405,7 @@ const requiredDwell = 800;
 let lastFrameTime = performance.now();
 
 function evaluateDiagnostics(gazeX, gazeY) {
-    if (!fixedBtn) return;
+    if (!fixedBtn || fixedBtn.parentElement.style.display === 'none') return;
 
     const rect = fixedBtn.getBoundingClientRect();
     const isInsideFixed = (
@@ -401,21 +432,8 @@ function evaluateDiagnostics(gazeX, gazeY) {
         dwellTimeAccumulator = Math.max(0, dwellTimeAccumulator - (deltaTime * 1.5)); 
         fixedBtn.style.background = `#333`;
         if (dwellTimeAccumulator === 0 && diagnosticStatusText) {
-            diagnosticStatusText.innerText = "Status: Ready for test (Looking away)";
+            diagnosticStatusText.innerText = "Status: Ready for test";
             fixedBtn.style.borderColor = "#555";
         }
     }
 }
-window.toggleElementVisibility = function() {
-    const showSlider = document.getElementById('toggle-slider').checked;
-    const showFixed = document.getElementById('toggle-fixed').checked;
-    
-    relayTarget.style.display = showSlider ? 'flex' : 'none';
-    
-    const fixedContainer = document.getElementById('test-fixed-btn').parentElement;
-    if (fixedContainer) {
-        fixedContainer.style.display = showFixed ? 'block' : 'none';
-    }
-    
-    log(`Visibility updated: Slider=${showSlider}, FixedTarget=${showFixed}`);
-};
