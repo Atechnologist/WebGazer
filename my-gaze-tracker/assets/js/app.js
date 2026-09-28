@@ -144,16 +144,24 @@ async function initSystem() {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        log("Evaluating TensorFlow engine deployment...");
-        if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
-            throw new Error("Core script files blocked by network rules.");
+        log("Checking TensorFlow global...");
+        if (typeof tf === 'undefined') {
+            throw new Error("TensorFlow.js script failed to load into global scope.");
+        }
+        if (typeof facemesh === 'undefined') {
+            throw new Error("FaceMesh model script failed to load into global scope.");
         }
         
+        log("Activating WebGL backend...");
+        await tf.setBackend('webgl');
         await tf.ready();
         log(`Active Engine Backend: ${tf.getBackend()}`);
         
+        log("Downloading neural face mesh patterns (this can take a few seconds)...");
         model = await facemesh.load({ maxFaces: 1 });
+        log("FaceMesh model loaded successfully.");
         
+        log("Requesting camera stream feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -168,8 +176,8 @@ async function initSystem() {
         };
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Ensure page runs via secure HTTPS link.";
-        console.error(err);
+        statusText.innerText = "Setup stalled. Check console for details.";
+        console.error("Initialization failure:", err);
     }
 }
 
