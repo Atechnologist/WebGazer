@@ -459,3 +459,20 @@ function evaluateDiagnostics(gazeX, gazeY) {
         }
     }
 }
+window.startCalibration = function(event) {
+    console.log("startCalibration called"); // Add this
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    
+    startBtn.style.display = 'none';
+    statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
+    
+    calibrationStep = 0;
+    isCalibrated = false;
+    eyeGrid = { tl: null, tr: null, bl: null, br: null };
+    
+    console.log("About to show dot, calibrationStep:", calibrationStep); // Add this
+    showNextCalibrationDot();
+};
