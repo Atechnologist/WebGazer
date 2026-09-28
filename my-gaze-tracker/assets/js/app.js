@@ -212,13 +212,15 @@ window.startCalibration = function(event) {
         event.preventDefault();
     }
     
-    // Hide just the start button and status text inside the overlay, keeping the container intact
-    if (startBtn) startBtn.style.display = 'none';
+    // Hide the start button completely
+    startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     
+    // Reset calibration state cleanly
     calibrationStep = 0;
     isCalibrated = false;
-    eyeGrid = { tl: null, tr: null, bl: null, br: null }; // Reset grid
+    eyeGrid = { tl: null, tr: null, bl: null, br: null };
+    
     showNextCalibrationDot();
 };
 
@@ -231,7 +233,7 @@ function showNextCalibrationDot() {
     } else {
         calibDot.style.display = 'none';
         
-        // Safely hide the entire UI overlay once calibration concludes
+        // Hide the UI overlay container once all 4 points are done
         const overlay = document.getElementById('ui-overlay');
         if (overlay) overlay.style.display = 'none';
         
@@ -242,20 +244,22 @@ function showNextCalibrationDot() {
     }
 }
 
+// Global capture listener with strict guards against button/settings clicks
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
-    if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
+    // Ignore if not in calibration mode or if clicking settings/buttons
+    if (isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest('#settings-panel')) return;
     if (!currentFeatures) return;
 
     const keys = ['tl', 'tr', 'bl', 'br'];
-    eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
-    
-    log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
-    calibrationStep++;
-    showNextCalibrationDot();
+    if (calibrationStep < keys.length) {
+        eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
+        log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
+        calibrationStep++;
+        showNextCalibrationDot();
+    }
 });
-
 function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
     if (!tl || !tr || !bl || !br) return;
