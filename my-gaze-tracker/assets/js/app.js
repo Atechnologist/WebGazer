@@ -13,7 +13,7 @@ const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
 let gravityBuffer = [];
-const gravityWindowSize = 60; 
+const gravityWindowSize = 15; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
@@ -285,8 +285,8 @@ function processGazeMapping(ex, ey, timestamp) {
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        relayX += (centerMassX - relayX) * 0.08;
-        relayY += (centerMassY - relayY) * 0.08;
+        relayX += (centerMassX - relayX) * 0.2;
+        relayY += (centerMassY - relayY) * 0.2;
         
         const padding = 50;
         relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
