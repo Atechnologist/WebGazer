@@ -5,7 +5,6 @@ const statusText = document.getElementById('status-text');
 const startBtn = document.getElementById('start-btn');
 const debugLog = document.getElementById('debug-console');
 
-// UI Panel Interactive Elements
 const smoothRange = document.getElementById('smooth-range');
 const smoothVal = document.getElementById('smooth-val');
 const invertXCheck = document.getElementById('invert-x-check');
@@ -13,30 +12,25 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State (Stable 4-Corner Setup with Boundary Clamping)
 let gravityBuffer = [];
 const gravityWindowSize = 60; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
-// Dwell Capacitor & Trigger State Properties
 let dwellProgress = 0;       
 let isTriggered = false;
 let isCoolingDown = false;
 const dwellChargeRate = 2.5; 
 const dwellDrainRate = 1.5;  
 
-// Core Architecture Properties
 let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
 
-// Custom Configuration Parameters State
 let smoothingFrames = 6;
 let invertX = false;
 
-// --- ONE-EURO FILTER GLOBAL INSTANCES ---
 class LowPassFilter {
     constructor(alpha, initval = 0) {
         this.y = initval;
@@ -91,12 +85,11 @@ class OneEuroFilter {
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-// Classic 4-Corner Target Insets
 const screenTargets = [
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, 
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, 
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, 
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  
 ];
 
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
@@ -117,7 +110,7 @@ window.updateSettings = function() {
 
 window.toggleSettings = function() {
     const panel = document.getElementById('settings-panel');
-    panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
+    if (panel) panel.style.display = (panel.style.display === 'block') ? 'none' : 'block';
 };
 
 window.clearHeatmap = function() {
@@ -125,7 +118,6 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-// Toggle visibility for individual elements via Settings Panel
 window.toggleElementVisibility = function() {
     const showSlider = document.getElementById('toggle-slider')?.checked ?? true;
     const showFixed = document.getElementById('toggle-fixed')?.checked ?? true;
@@ -157,7 +149,7 @@ async function initSystem() {
         await tf.ready();
         log(`Active Engine Backend: ${tf.getBackend()}`);
         
-        log("Downloading neural face mesh patterns (this can take a few seconds)...");
+        log("Downloading neural face mesh patterns...");
         model = await facemesh.load({ maxFaces: 1 });
         log("FaceMesh model loaded successfully.");
         
@@ -215,16 +207,15 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
+    console.log("startCalibration called");
     if (event) {
         event.stopPropagation();
         event.preventDefault();
     }
     
-    // Hide the start button completely
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     
-    // Reset calibration state cleanly
     calibrationStep = 0;
     isCalibrated = false;
     eyeGrid = { tl: null, tr: null, bl: null, br: null };
@@ -241,7 +232,6 @@ function showNextCalibrationDot() {
     } else {
         calibDot.style.display = 'none';
         
-        // Hide the UI overlay container once all 4 points are done
         const overlay = document.getElementById('ui-overlay');
         if (overlay) overlay.style.display = 'none';
         
@@ -252,10 +242,8 @@ function showNextCalibrationDot() {
     }
 }
 
-// Global capture listener with strict guards against button/settings clicks
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
-    // Ignore if not in calibration mode or if clicking settings/buttons
     if (isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest('#settings-panel')) return;
     if (!currentFeatures) return;
@@ -268,6 +256,7 @@ window.addEventListener(triggerEvent, (e) => {
         showNextCalibrationDot();
     }
 });
+
 function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
     if (!tl || !tr || !bl || !br) return;
@@ -275,9 +264,7 @@ function processGazeMapping(ex, ey, timestamp) {
     let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
 
-    if (invertX) {
-        tx = 1 - tx;
-    }
+    if (invertX) tx = 1 - tx;
 
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
@@ -291,7 +278,6 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- SMOOTH GRAVITY WELL WITH SAFE BOUNDARY CLAMPING ---
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
         gravityBuffer.shift(); 
@@ -302,7 +288,6 @@ function processGazeMapping(ex, ey, timestamp) {
         relayX += (centerMassX - relayX) * 0.08;
         relayY += (centerMassY - relayY) * 0.08;
         
-        // Strict boundary protection so the slider never runs off-screen
         const padding = 50;
         relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
         relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
@@ -371,8 +356,8 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- HARDWARE & BLE INTEGRATION ---
-let bleDevice, bleCharacteristic;
+let bleDevice = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
@@ -419,7 +404,6 @@ async function triggerHardwareRelay() {
     }
 }
 
-// --- FIXED DIAGNOSTIC TEST BUTTON LOGIC ---
 const fixedBtn = document.getElementById('test-fixed-btn');
 const diagnosticStatusText = document.getElementById('diagnostic-status');
 let dwellTimeAccumulator = 0;
@@ -459,20 +443,3 @@ function evaluateDiagnostics(gazeX, gazeY) {
         }
     }
 }
-window.startCalibration = function(event) {
-    console.log("startCalibration called"); // Add this
-    if (event) {
-        event.stopPropagation();
-        event.preventDefault();
-    }
-    
-    startBtn.style.display = 'none';
-    statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
-    
-    calibrationStep = 0;
-    isCalibrated = false;
-    eyeGrid = { tl: null, tr: null, bl: null, br: null };
-    
-    console.log("About to show dot, calibrationStep:", calibrationStep); // Add this
-    showNextCalibrationDot();
-};
