@@ -13,7 +13,7 @@ const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
 let gravityBuffer = [];
-const gravityWindowSize = 15; 
+const gravityWindowSize = 90; 
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
@@ -118,42 +118,24 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-window.toggleElementVisibility = function() {
-    const showSlider = document.getElementById('toggle-slider')?.checked ?? true;
-    const showFixed = document.getElementById('toggle-fixed')?.checked ?? true;
-    
-    relayTarget.style.display = showSlider ? 'flex' : 'none';
-    
-    const fixedContainer = document.getElementById('test-fixed-btn')?.parentElement;
-    if (fixedContainer) {
-        fixedContainer.style.display = showFixed ? 'block' : 'none';
-    }
-    log(`Visibility updated: Slider=${showSlider}, FixedTarget=${showFixed}`);
-};
-
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        log("Checking TensorFlow global...");
-        if (typeof tf === 'undefined') {
-            throw new Error("TensorFlow.js script failed to load into global scope.");
-        }
-        if (typeof facemesh === 'undefined') {
-            throw new Error("FaceMesh model script failed to load into global scope.");
+        log("Evaluating legacy TensorFlow engine deployment...");
+        if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
+            throw new Error("Core script files blocked by network rules.");
         }
         
-        log("Activating WebGL backend...");
-        await tf.setBackend('webgl');
+        log("Booting hardware web acceleration backend...");
         await tf.ready();
         log(`Active Engine Backend: ${tf.getBackend()}`);
         
         log("Downloading neural face mesh patterns...");
         model = await facemesh.load({ maxFaces: 1 });
-        log("FaceMesh model loaded successfully.");
         
-        log("Requesting camera stream feed...");
+        log("Connecting to front video stream feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -162,14 +144,14 @@ async function initSystem() {
         
         videoElement.onloadedmetadata = () => {
             log("Camera pipeline active. Application verified.");
-            statusText.innerText = "Hold your device steady";
+            statusText.innerText = "Hold your tablet or phone steady";
             startBtn.disabled = false;
             trackFrameLoop();
         };
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Check console for details.";
-        console.error("Initialization failure:", err);
+        statusText.innerText = "Setup stalled. Ensure page runs via secure HTTPS link.";
+        console.error(err);
     }
 }
 
@@ -207,19 +189,12 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    console.log("startCalibration called");
-    if (event) {
-        event.stopPropagation();
-        event.preventDefault();
-    }
+    if (event) event.stopPropagation();
     
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
-    
     calibrationStep = 0;
     isCalibrated = false;
-    eyeGrid = { tl: null, tr: null, bl: null, br: null };
-    
     showNextCalibrationDot();
 };
 
@@ -231,10 +206,8 @@ function showNextCalibrationDot() {
         log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
     } else {
         calibDot.style.display = 'none';
-        
         const overlay = document.getElementById('ui-overlay');
         if (overlay) overlay.style.display = 'none';
-        
         isCalibrated = true;
         gazePointer.style.display = 'block';
         relayTarget.classList.add('active-ready');
@@ -244,17 +217,16 @@ function showNextCalibrationDot() {
 
 const triggerEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
 window.addEventListener(triggerEvent, (e) => {
-    if (isCalibrated || calibDot.style.display === 'none') return;
+    if (calibrationStep >= 4 || isCalibrated || calibDot.style.display === 'none') return;
     if (e.target.id === 'start-btn' || e.target.id === 'settings-btn' || e.target.closest('#settings-panel')) return;
     if (!currentFeatures) return;
 
     const keys = ['tl', 'tr', 'bl', 'br'];
-    if (calibrationStep < keys.length) {
-        eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
-        log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
-        calibrationStep++;
-        showNextCalibrationDot();
-    }
+    eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
+    
+    log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
+    calibrationStep++;
+    showNextCalibrationDot();
 });
 
 function processGazeMapping(ex, ey, timestamp) {
@@ -285,20 +257,15 @@ function processGazeMapping(ex, ey, timestamp) {
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        relayX += (centerMassX - relayX) * 0.2;
-        relayY += (centerMassY - relayY) * 0.2;
+        relayX += (centerMassX - relayX) * 0.05;
+        relayY += (centerMassY - relayY) * 0.05;
         
-        const padding = 50;
-        relayX = Math.max(padding, Math.min(window.innerWidth - padding - relayTarget.offsetWidth, relayX));
-        relayY = Math.max(padding, Math.min(window.innerHeight - padding - relayTarget.offsetHeight, relayY));
-
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
     }
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
-    evaluateDiagnostics(avgX, avgY);
 }
 
 function renderHeatmapFootprint(x, y) {
@@ -357,7 +324,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
@@ -401,45 +368,5 @@ async function triggerHardwareRelay() {
         log("Hardware webhook dispatched via beacon.");
     } catch (err) {
         log("Webhook Error: Failed to reach ESPHome device.");
-    }
-}
-
-const fixedBtn = document.getElementById('test-fixed-btn');
-const diagnosticStatusText = document.getElementById('diagnostic-status');
-let dwellTimeAccumulator = 0;
-const requiredDwell = 800; 
-let lastFrameTime = performance.now();
-
-function evaluateDiagnostics(gazeX, gazeY) {
-    if (!fixedBtn || fixedBtn.parentElement.style.display === 'none') return;
-
-    const rect = fixedBtn.getBoundingClientRect();
-    const isInsideFixed = (
-        gazeX >= rect.left && gazeX <= rect.right &&
-        gazeY >= rect.top && gazeY <= rect.bottom
-    );
-
-    const now = performance.now();
-    const deltaTime = now - lastFrameTime;
-    lastFrameTime = now;
-
-    if (isInsideFixed) {
-        dwellTimeAccumulator += deltaTime;
-        const progress = Math.min(100, (dwellTimeAccumulator / requiredDwell) * 100);
-        fixedBtn.style.background = `linear-gradient(90deg, #2ed573 ${progress}%, #333 ${progress}%)`;
-        if (diagnosticStatusText) diagnosticStatusText.innerText = `Status: Fixating... (${Math.round(progress)}%)`;
-
-        if (dwellTimeAccumulator >= requiredDwell) {
-            if (diagnosticStatusText) diagnosticStatusText.innerText = "Status: SUCCESS! Fixed Target Triggered.";
-            fixedBtn.style.borderColor = "#2ed573";
-            setTimeout(() => { dwellTimeAccumulator = 0; }, 1000);
-        }
-    } else {
-        dwellTimeAccumulator = Math.max(0, dwellTimeAccumulator - (deltaTime * 1.5)); 
-        fixedBtn.style.background = `#333`;
-        if (dwellTimeAccumulator === 0 && diagnosticStatusText) {
-            diagnosticStatusText.innerText = "Status: Ready for test";
-            fixedBtn.style.borderColor = "#555";
-        }
     }
 }
