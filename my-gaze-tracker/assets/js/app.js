@@ -15,7 +15,7 @@ const ctx = heatmapCanvas.getContext('2d');
 
 // Gravity Well Dynamic Positioning State
 let gravityBuffer = [];
-const WindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
+const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
@@ -273,29 +273,6 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-function processGazeMapping(ex, ey, timestamp) {
-    const { tl, tr, bl, br } = eyeGrid;
-    if (!tl || !tr || !bl || !br) return;
-
-    let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
-    let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
-
-    if (invertX) {
-        tx = 1 - tx;
-    }
-
-    const u = Math.max(0, Math.min(1, tx));
-    const v = Math.max(0, Math.min(1, ty));
-
-    let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
-    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
-
-    const avgX = filterX.filter(targetX, timestamp);
-    const avgY = filterY.filter(targetY, timestamp);
-
-    gazePointer.style.left = `${avgX}px`;
-    gazePointer.style.top = `${avgY}px`;
-
     // --- PURE MAPPING & HEATMAP TRACKING FIRST ---
     gravityBuffer.push({ x: avgX, y: avgY });
     
@@ -379,7 +356,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
