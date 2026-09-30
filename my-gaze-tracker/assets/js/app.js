@@ -273,15 +273,14 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- RESTORED & OPTIMIZED GRAVITY WELL BUTTON MOVEMENT ---
+    // --- GRAVITY WELL WITH DIRECTIONAL CORRECTION ---
     gravityBuffer.push({ x: avgX, y: avgY });
     
-    // Keep a rolling window of recent gaze points to find the center mass
     if (gravityBuffer.length > gravityWindowSize) {
         gravityBuffer.shift();
     }
 
-    if (gravityBuffer.length >= 30) { // Start pulling after a short buffer builds up
+    if (gravityBuffer.length >= 30) {
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
@@ -289,8 +288,10 @@ function processGazeMapping(ex, ey, timestamp) {
         if (centerMassX > padding && centerMassX < window.innerWidth - padding &&
             centerMassY > padding && centerMassY < window.innerHeight - padding) {
             
-            // Smoothly interpolate the relay button position toward the gaze center mass
-            relayX += (centerMassX - relayX) * 0.08;
+            // If the button is moving away, we flip the delta direction multiplier (-1)
+            const directionMultiplier = 1; // Change to -1 if it still moves the wrong way
+            
+            relayX += (centerMassX - relayX) * 0.08 * directionMultiplier;
             relayY += (centerMassY - relayY) * 0.08;
             
             relayTarget.style.left = `${relayX}px`;
@@ -301,7 +302,6 @@ function processGazeMapping(ex, ey, timestamp) {
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
 }
-
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
