@@ -273,33 +273,31 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-// --- ACCUMULATE GAZE FOR SWEET-SPOT DISCOVERY ---
+// --- PURE MAPPING & HEATMAP TRACKING FIRST ---
     gravityBuffer.push({ x: avgX, y: avgY });
     
-    // Once we have a robust sample size (~1.5 seconds of data)
+    // Only reposition the relay button if we have a robust, dense heatmap cluster
     if (gravityBuffer.length >= gravityWindowSize) {
-        // Compute the true center of mass of your actual gaze concentration
-        const sweetSpotX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
-        const sweetSpotY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
+        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
+        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Lock or gently glide the relay button precisely onto your heatmap sweet spot
-        relayX += (sweetSpotX - relayX) * 0.1;
-        relayY += (sweetSpotY - relayY) * 0.1;
+        // Check if the gaze concentration is stable and on-screen before moving the button
+        const padding = 150;
+        if (centerMassX > padding && centerMassX < window.innerWidth - padding &&
+            centerMassY > padding && centerMassY < window.innerHeight - padding) {
+            
+            relayX += (centerMassX - relayX) * 0.05;
+            relayY += (centerMassY - relayY) * 0.05;
+            
+            relayTarget.style.left = `${relayX}px`;
+            relayTarget.style.top = `${relayY}px`;
+        }
         
-        // Ensure it stays comfortably on screen
-        const padding = 100;
-        relayX = Math.max(padding, Math.min(window.innerWidth - padding, relayX));
-        relayY = Math.max(padding, Math.min(window.innerHeight - padding, relayY));
-        
-        relayTarget.style.left = `${relayX}px`;
-        relayTarget.style.top = `${relayY}px`;
-        
-        // Keep buffer stable by trimming old entries
         gravityBuffer.shift();
     }
+
     renderHeatmapFootprint(avgX, avgY);
-    try {
-        checkRelayActivation(avgX, avgY);
+    checkRelayActivation(avgX, avgY);
     } catch(err) {}
 }
 
