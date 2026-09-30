@@ -250,20 +250,29 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    gravityBuffer.push({ x: avgX, y: avgY });
+gravityBuffer.push({ x: avgX, y: avgY });
+    
+    // Once we have enough frames, calculate the natural gaze center
     if (gravityBuffer.length >= gravityWindowSize) {
-        gravityBuffer.shift(); 
+        gravityBuffer.shift(); // Keep buffer fixed at 90 frames (~1.5 to 3 seconds)
         
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
+        // Smooth interpolation toward your gaze center
         relayX += (centerMassX - relayX) * 0.05;
         relayY += (centerMassY - relayY) * 0.05;
         
-        // --- ADD BOUNDARY CLAMPING SO IT CANNOT ESCAPE ---
-        const padding = 80;
-        relayX = Math.max(padding, Math.min(window.innerWidth - padding, relayX));
-        relayY = Math.max(padding, Math.min(window.innerHeight - padding, relayY));
+        // --- SAFE BOUNDS CLAMPING ---
+        // Keeps the button strictly within the central/operable screen area 
+        // so it never runs away to the absolute edges of the monitor.
+        const minX = window.innerWidth * 0.2;
+        const maxX = window.innerWidth * 0.8;
+        const minY = window.innerHeight * 0.2;
+        const maxY = window.innerHeight * 0.8;
+
+        relayX = Math.max(minX, Math.min(maxX, relayX));
+        relayY = Math.max(minY, Math.min(maxY, relayY));
         
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
