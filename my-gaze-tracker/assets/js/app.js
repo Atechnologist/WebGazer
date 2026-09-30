@@ -357,7 +357,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-let bleCharacteristic = null;
+bleCharacteristic = null;
 
 async function connectBLE() {
     try {
