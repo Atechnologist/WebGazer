@@ -323,7 +323,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null; // Single clean declaration to avoid duplicate errors
+//let bleCharacteristic = null; // Single clean declaration to avoid duplicate errors
 
 async function connectBLE() {
     try {
