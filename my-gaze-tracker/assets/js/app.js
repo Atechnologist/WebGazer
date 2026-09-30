@@ -13,18 +13,18 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State
-let gravityBuffer = [];
-const gravityWindowSize = 45; // Shortened window for faster, more responsive sliding
+// Smooth Physics / D3-style Interpolation State for Relay Target
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
+let targetRelayX = window.innerWidth / 2;
+let targetRelayY = window.innerHeight / 2;
 
-// Dwell Capacitor & Trigger State Properties (Speeded up drain/reset)
+// Dwell Capacitor & Trigger State Properties
 let dwellProgress = 0;       // 0 to 100%
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 3.5; // Faster fill speed
-const dwellDrainRate = 4.0;  // Much faster drain when looking away so it resets instantly
+const dwellChargeRate = 3.5; 
+const dwellDrainRate = 4.0;  
 
 // Core Architecture Properties
 let model = null;
@@ -220,7 +220,7 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
-// --- CORRECTED GRAVITY WELL WITH BOUNDING & CORRECT DIRECTION ---
+// --- D3-STYLE COLLISION SIMULATION & TARGET MAPPING ---
 function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
     if (!tl || !tr || !bl || !br) return;
@@ -244,30 +244,24 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    gravityBuffer.push({ x: avgX, y: avgY });
-    if (gravityBuffer.length > gravityWindowSize) {
-        gravityBuffer.shift();
-    }
+    // Direct WebGazer collision physics: Set target destination for the button based on gaze position
+    targetRelayX = avgX;
+    targetRelayY = avgY;
 
-    if (gravityBuffer.length >= 15) {
-        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
-        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
-        
-        // Corrected pull direction (positive delta matches gaze vector naturally)
-        relayX += (centerMassX - relayX) * 0.12;
-        relayY += (centerMassY - relayY) * 0.12;
-        
-        // Clamp bounds so the button stays strictly on screen and never goes off-screen
-        const margin = 80;
-        relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
-        relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
-        
-        relayTarget.style.left = `${relayX}px`;
-        relayTarget.style.top = `${relayY}px`;
-    }
+    // Smooth spring interpolation (D3 force style simulation step)
+    relayX += (targetRelayX - relayX) * 0.15;
+    relayY += (targetRelayY - relayY) * 0.15;
+
+    // Clamp bounds to keep the button safely on screen
+    const margin = 80;
+    relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
+    relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
+
+    relayTarget.style.left = `${relayX}px`;
+    relayTarget.style.top = `${relayY}px`;
 
     renderHeatmapFootprint(avgX, avgY);
-    checkRelayActivation(avgX, avgY);
+    checkRelayActivation(relayX, relayY); // Check activation against button's current bounding box
 }
 
 function renderHeatmapFootprint(x, y) {
@@ -277,22 +271,24 @@ function renderHeatmapFootprint(x, y) {
     ctx.fill();
 }
 
-function checkRelayActivation(gazeX, gazeY) {
+function checkRelayActivation(currentButtonX, currentButtonY) {
     if (isCoolingDown) return;
 
     const relayRect = relayTarget.getBoundingClientRect();
-    const isGazing = (
-        gazeX >= relayRect.left &&
-        gazeX <= relayRect.right &&
-        gazeY >= relayRect.top &&
-        gazeY <= relayRect.bottom
+    const gazePointerRect = gazePointer.getBoundingClientRect();
+
+    // Check collision / overlap between gaze pointer and the button element (Collision demo style)
+    const isColliding = !(
+        gazePointerRect.right < relayRect.left || 
+        gazePointerRect.left > relayRect.right || 
+        gazePointerRect.bottom < relayRect.top || 
+        gazePointerRect.top > relayRect.bottom
     );
 
-    if (isGazing) {
+    if (isColliding) {
         dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
         relayTarget.classList.add('gaze-hover');
     } else {
-        // Fast drain rate guarantees quick capacitor reset when looking away
         dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
         relayTarget.classList.remove('gaze-hover');
     }
@@ -315,7 +311,7 @@ function checkRelayActivation(gazeX, gazeY) {
             relayTarget.classList.remove('triggered');
             relayTarget.innerText = "RELAY SWITCH [0%]";
             log("Relay capacitor reset.");
-        }, 1500); // Shorter cooldown window
+        }, 1500);
     } else if (!isTriggered) {
         const percent = Math.floor(dwellProgress);
         relayTarget.innerText = `RELAY SWITCH [${percent}%]`;
@@ -327,7 +323,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-
+let bleCharacteristic = null; // Single clean declaration to avoid duplicate errors
 
 async function connectBLE() {
     try {
