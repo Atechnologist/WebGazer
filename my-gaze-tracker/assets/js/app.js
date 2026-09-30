@@ -273,19 +273,21 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- GRAVITY WELL DYNAMIC REPOSITIONING WITH BOUNDARY CLAMPS ---
+   // --- HEATMAP SWEET SPOT CENTERING ---
     gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
         gravityBuffer.shift(); 
         
-        const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
-        const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
+        // Center of mass of your actual gaze concentration (the heatmap sweet spot)
+        const sweetSpotX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
+        const sweetSpotY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        relayX += (centerMassX - relayX) * 0.05;
-        relayY += (centerMassY - relayY) * 0.05;
+        // Let the sliding relay button track the sweet spot smoothly
+        relayX += (sweetSpotX - relayX) * 0.05;
+        relayY += (sweetSpotY - relayY) * 0.05;
         
-        // Prevent button from running away off-screen
-        const padding = 100;
+        // Safe boundaries tightly coupled around where your eyes naturally look
+        const padding = 120;
         relayX = Math.max(padding, Math.min(window.innerWidth - padding, relayX));
         relayY = Math.max(padding, Math.min(window.innerHeight - padding, relayY));
         
