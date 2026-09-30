@@ -5,6 +5,7 @@ const statusText = document.getElementById('status-text');
 const startBtn = document.getElementById('start-btn');
 const debugLog = document.getElementById('debug-console');
 
+// UI Panel Interactive Elements
 const smoothRange = document.getElementById('smooth-range');
 const smoothVal = document.getElementById('smooth-val');
 const invertXCheck = document.getElementById('invert-x-check');
@@ -12,25 +13,30 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
+// Gravity Well Dynamic Positioning State
 let gravityBuffer = [];
-const gravityWindowSize = 90; 
+const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
-let dwellProgress = 0;       
+// Dwell Capacitor & Trigger State Properties
+let dwellProgress = 0;       // 0 to 100%
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 2.5; 
-const dwellDrainRate = 1.5;  
+const dwellChargeRate = 2.5; // Speed of filling per frame
+const dwellDrainRate = 1.5;  // Speed of draining when looking away
 
+// Core Architecture Properties
 let model = null;
 let currentFeatures = null;
 let calibrationStep = 0;
 let isCalibrated = false;
 
+// Custom Configuration Parameters State
 let smoothingFrames = 6;
 let invertX = false;
 
+// --- ONE-EURO FILTER GLOBAL INSTANCES ---
 class LowPassFilter {
     constructor(alpha, initval = 0) {
         this.y = initval;
@@ -82,25 +88,31 @@ class OneEuroFilter {
     }
 }
 
+// Initialize individual filters globally for X and Y coordinate mapping streams (~60fps base)
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
+// Interactive Percentage Inset Coordinates 
 const screenTargets = [
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, 
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, 
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, 
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
 ];
 
+// Linear Algebra Mapping Interpolation Matrix Grid Coordinates
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
+const smoothingBuffer = [];
 
 function log(msg) { if(debugLog) debugLog.innerText = "System Log: " + msg; }
 
+// Window Size Adaptability Adjuster Configuration
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
 });
 
+// Settings Control Panel Interactivity Listeners
 window.updateSettings = function() {
     smoothingFrames = parseInt(smoothRange.value);
     smoothVal.innerText = `${smoothingFrames} frames`;
@@ -118,6 +130,7 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
+// Initialisation Pipeline Routine Execution
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
@@ -155,13 +168,17 @@ async function initSystem() {
     }
 }
 
+// Processing Execution Tracking Context Frames Loop
 async function trackFrameLoop() {
     if (model && videoElement.readyState >= 2) {
         try {
             const predictions = await model.estimateFaces(videoElement);
             
-            if (predictions.length > 0) {
+            if (predictions.length === 0) {
+                log("Searching for tracking profile context...");
+            } else {
                 const mesh = predictions[0].scaledMesh;
+                
                 const outer = mesh[33]; 
                 const inner = mesh[133];
                 const iris = mesh[159]; 
@@ -178,6 +195,8 @@ async function trackFrameLoop() {
 
                     if (isCalibrated) {
                         processGazeMapping(currentFeatures[0], currentFeatures[1], performance.now());
+                    } else {
+                        log("Tracking operational. Ready to calibrate.");
                     }
                 }
             }
@@ -189,7 +208,7 @@ async function trackFrameLoop() {
 }
 
 window.startCalibration = function(event) {
-    if (event) event.stopPropagation();
+    if (event) event.stopPropagation(); 
     
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
@@ -210,6 +229,7 @@ function showNextCalibrationDot() {
         if (overlay) overlay.style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
+        
         relayTarget.classList.add('active-ready');
         log("System Gaze Processing active.");
     }
@@ -229,6 +249,7 @@ window.addEventListener(triggerEvent, (e) => {
     showNextCalibrationDot();
 });
 
+// Mathematical Coordinate Normalization Transformation Layer Map Engine
 function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
     if (!tl || !tr || !bl || !br) return;
@@ -236,7 +257,9 @@ function processGazeMapping(ex, ey, timestamp) {
     let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
     let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
 
-    if (invertX) tx = 1 - tx;
+    if (invertX) {
+        tx = 1 - tx;
+    }
 
     const u = Math.max(0, Math.min(1, tx));
     const v = Math.max(0, Math.min(1, ty));
@@ -250,35 +273,30 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-gravityBuffer.push({ x: avgX, y: avgY });
-    
-    // Once we have enough frames, calculate the natural gaze center
+    // --- GRAVITY WELL DYNAMIC REPOSITIONING WITH BOUNDARY CLAMPS ---
+    gravityBuffer.push({ x: avgX, y: avgY });
     if (gravityBuffer.length >= gravityWindowSize) {
-        gravityBuffer.shift(); // Keep buffer fixed at 90 frames (~1.5 to 3 seconds)
+        gravityBuffer.shift(); 
         
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Smooth interpolation toward your gaze center
         relayX += (centerMassX - relayX) * 0.05;
         relayY += (centerMassY - relayY) * 0.05;
         
-        // --- SAFE BOUNDS CLAMPING ---
-        // Keeps the button strictly within the central/operable screen area 
-        // so it never runs away to the absolute edges of the monitor.
-        const minX = window.innerWidth * 0.2;
-        const maxX = window.innerWidth * 0.8;
-        const minY = window.innerHeight * 0.2;
-        const maxY = window.innerHeight * 0.8;
-
-        relayX = Math.max(minX, Math.min(maxX, relayX));
-        relayY = Math.max(minY, Math.min(maxY, relayY));
+        // Prevent button from running away off-screen
+        const padding = 100;
+        relayX = Math.max(padding, Math.min(window.innerWidth - padding, relayX));
+        relayY = Math.max(padding, Math.min(window.innerHeight - padding, relayY));
         
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
     }
+
     renderHeatmapFootprint(avgX, avgY);
-    checkRelayActivation(avgX, avgY);
+    try {
+        checkRelayActivation(avgX, avgY);
+    } catch(err) {}
 }
 
 function renderHeatmapFootprint(x, y) {
@@ -337,7 +355,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
@@ -362,15 +380,16 @@ async function connectBLE() {
     }
 }
 
+// --- UNIFIED HARDWARE TRIGGER (BLE First, Webhook Fallback) ---
 async function triggerHardwareRelay() {
     if (bleCharacteristic) {
         try {
             const encoder = new TextEncoder();
             await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
-            console.log("💥 Relay trigger command sent over BLE");
+            log("💥 Relay command sent over BLE");
             return;
         } catch (err) {
-            console.error("BLE write failed, trying web fallback:", err);
+            console.error("BLE write failed, falling back to network webhook:", err);
         }
     }
     
