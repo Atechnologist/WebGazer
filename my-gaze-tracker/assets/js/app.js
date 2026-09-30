@@ -13,18 +13,18 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State (Currently bypassed for testing)
+// Gravity Well Dynamic Positioning State
 let gravityBuffer = [];
-const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
+const gravityWindowSize = 45; // Shortened window for faster, more responsive sliding
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
-// Dwell Capacitor & Trigger State Properties
+// Dwell Capacitor & Trigger State Properties (Speeded up drain/reset)
 let dwellProgress = 0;       // 0 to 100%
 let isTriggered = false;
 let isCoolingDown = false;
-const dwellChargeRate = 2.5; // Speed of filling per frame
-const dwellDrainRate = 1.5;  // Speed of draining when looking away
+const dwellChargeRate = 3.5; // Faster fill speed
+const dwellDrainRate = 4.0;  // Much faster drain when looking away so it resets instantly
 
 // Core Architecture Properties
 let model = null;
@@ -88,31 +88,25 @@ class OneEuroFilter {
     }
 }
 
-// Initialize individual filters globally for X and Y coordinate mapping streams (~60fps base)
 const filterX = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 const filterY = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
-// Interactive Percentage Inset Coordinates 
 const screenTargets = [
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) }, // Top Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) }, // Top Right
-    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) }, // Bottom Left
-    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }  // Bottom Right
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.15) },
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.15) },
+    { x: Math.round(window.innerWidth * 0.15), y: Math.round(window.innerHeight * 0.85) },
+    { x: Math.round(window.innerWidth * 0.85), y: Math.round(window.innerHeight * 0.85) }
 ];
 
-// Linear Algebra Mapping Interpolation Matrix Grid Coordinates
 let eyeGrid = { tl: null, tr: null, bl: null, br: null };
-const smoothingBuffer = [];
 
 function log(msg) { if(debugLog) debugLog.innerText = "System Log: " + msg; }
 
-// Window Size Adaptability Adjuster Configuration
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
 });
 
-// Settings Control Panel Interactivity Listeners
 window.updateSettings = function() {
     smoothingFrames = parseInt(smoothRange.value);
     smoothVal.innerText = `${smoothingFrames} frames`;
@@ -130,25 +124,18 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-// Initialisation Pipeline Routine Execution
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        log("Evaluating legacy TensorFlow engine deployment...");
         if (typeof tf === 'undefined' || typeof facemesh === 'undefined') {
             throw new Error("Core script files blocked by network rules.");
         }
         
-        log("Booting hardware web acceleration backend...");
         await tf.ready();
-        log(`Active Engine Backend: ${tf.getBackend()}`);
-        
-        log("Downloading neural face mesh patterns...");
         model = await facemesh.load({ maxFaces: 1 });
         
-        log("Connecting to front video stream feed...");
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
             audio: false 
@@ -156,32 +143,23 @@ async function initSystem() {
         videoElement.srcObject = stream;
         
         videoElement.onloadedmetadata = () => {
-            log("Camera pipeline active. Application verified.");
-            statusText.innerText = "Hold your tablet or phone steady";
+            statusText.innerText = "Hold your device steady";
             startBtn.disabled = false;
             trackFrameLoop();
         };
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
         statusText.innerText = "Setup stalled. Ensure page runs via secure HTTPS link.";
-        console.error(err);
     }
 }
 
-// Processing Execution Tracking Context Frames Loop
 async function trackFrameLoop() {
     if (model && videoElement.readyState >= 2) {
         try {
             const predictions = await model.estimateFaces(videoElement);
-            
-            if (predictions.length === 0) {
-                log("Searching for tracking profile context...");
-            } else {
+            if (predictions.length > 0) {
                 const mesh = predictions[0].scaledMesh;
-                
-                const outer = mesh[33]; 
-                const inner = mesh[133];
-                const iris = mesh[159]; 
+                const outer = mesh[33], inner = mesh[133], iris = mesh[159]; 
 
                 if (outer && inner && iris) {
                     const eyeCenterX = (inner[0] + outer[0]) / 2;
@@ -195,13 +173,11 @@ async function trackFrameLoop() {
 
                     if (isCalibrated) {
                         processGazeMapping(currentFeatures[0], currentFeatures[1], performance.now());
-                    } else {
-                        log("Tracking operational. Ready to calibrate.");
                     }
                 }
             }
         } catch (e) {
-            log("Frame Processing Skip: " + e.message);
+            // Skip frame error cleanly
         }
     }
     requestAnimationFrame(trackFrameLoop);
@@ -209,7 +185,6 @@ async function trackFrameLoop() {
 
 window.startCalibration = function(event) {
     if (event) event.stopPropagation(); 
-    
     startBtn.style.display = 'none';
     statusText.innerText = "Stare at the red dot and TAP the screen to capture.";
     calibrationStep = 0;
@@ -222,14 +197,12 @@ function showNextCalibrationDot() {
         calibDot.style.display = 'block';
         calibDot.style.left = `${screenTargets[calibrationStep].x}px`;
         calibDot.style.top = `${screenTargets[calibrationStep].y}px`;
-        log(`Displaying dot ${calibrationStep + 1} for positioning calibration.`);
     } else {
         calibDot.style.display = 'none';
         const overlay = document.getElementById('ui-overlay');
         if (overlay) overlay.style.display = 'none';
         isCalibrated = true;
         gazePointer.style.display = 'block';
-        
         relayTarget.classList.add('active-ready');
         log("System Gaze Processing active.");
     }
@@ -243,13 +216,11 @@ window.addEventListener(triggerEvent, (e) => {
 
     const keys = ['tl', 'tr', 'bl', 'br'];
     eyeGrid[keys[calibrationStep]] = { x: currentFeatures[0], y: currentFeatures[1] };
-    
-    log(`Captured Point ${calibrationStep + 1} Matrix mapping values.`);
     calibrationStep++;
     showNextCalibrationDot();
 });
 
-// Mathematical Coordinate Normalization Transformation Layer Map Engine
+// --- CORRECTED GRAVITY WELL WITH BOUNDING & CORRECT DIRECTION ---
 function processGazeMapping(ex, ey, timestamp) {
     const { tl, tr, bl, br } = eyeGrid;
     if (!tl || !tr || !bl || !br) return;
@@ -273,35 +244,32 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- GRAVITY WELL WITH DIRECTIONAL CORRECTION ---
     gravityBuffer.push({ x: avgX, y: avgY });
-    
     if (gravityBuffer.length > gravityWindowSize) {
         gravityBuffer.shift();
     }
 
-    if (gravityBuffer.length >= 30) {
+    if (gravityBuffer.length >= 15) {
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        const padding = 50;
-        if (centerMassX > padding && centerMassX < window.innerWidth - padding &&
-            centerMassY > padding && centerMassY < window.innerHeight - padding) {
-            
-            // If the button is moving away, we flip the delta direction multiplier (-1)
-            const directionMultiplier = 1; // Change to -1 if it still moves the wrong way
-            
-            relayX += (centerMassX - relayX) * 0.08 * directionMultiplier;
-            relayY += (centerMassY - relayY) * 0.08;
-            
-            relayTarget.style.left = `${relayX}px`;
-            relayTarget.style.top = `${relayY}px`;
-        }
+        // Corrected pull direction (positive delta matches gaze vector naturally)
+        relayX += (centerMassX - relayX) * 0.12;
+        relayY += (centerMassY - relayY) * 0.12;
+        
+        // Clamp bounds so the button stays strictly on screen and never goes off-screen
+        const margin = 80;
+        relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
+        relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
+        
+        relayTarget.style.left = `${relayX}px`;
+        relayTarget.style.top = `${relayY}px`;
     }
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
 }
+
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
@@ -324,6 +292,7 @@ function checkRelayActivation(gazeX, gazeY) {
         dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
         relayTarget.classList.add('gaze-hover');
     } else {
+        // Fast drain rate guarantees quick capacitor reset when looking away
         dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
         relayTarget.classList.remove('gaze-hover');
     }
@@ -346,7 +315,7 @@ function checkRelayActivation(gazeX, gazeY) {
             relayTarget.classList.remove('triggered');
             relayTarget.innerText = "RELAY SWITCH [0%]";
             log("Relay capacitor reset.");
-        }, 2500);
+        }, 1500); // Shorter cooldown window
     } else if (!isTriggered) {
         const percent = Math.floor(dwellProgress);
         relayTarget.innerText = `RELAY SWITCH [${percent}%]`;
@@ -358,7 +327,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
@@ -375,15 +344,12 @@ async function connectBLE() {
         bleCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-ba9876543210');
 
         if (statusEl) statusEl.innerText = "Status: Connected";
-        console.log("Connected to Atom Lite via BLE");
     } catch (err) {
         const statusEl = document.getElementById('connectionStatus');
         if (statusEl) statusEl.innerText = "Status: Failed";
-        console.error("BLE Connection error:", err);
     }
 }
 
-// --- UNIFIED HARDWARE TRIGGER (BLE First, Webhook Fallback) ---
 async function triggerHardwareRelay() {
     if (bleCharacteristic) {
         try {
