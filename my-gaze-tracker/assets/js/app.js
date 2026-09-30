@@ -273,7 +273,30 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-// --- PURE MAPPING & HEATMAP TRACKING FIRST ---
+function processGazeMapping(ex, ey, timestamp) {
+    const { tl, tr, bl, br } = eyeGrid;
+    if (!tl || !tr || !bl || !br) return;
+
+    let tx = (ex - tl.x) / ((tr.x - tl.x) || 0.001);
+    let ty = (ey - tl.y) / ((bl.y - tl.y) || 0.001);
+
+    if (invertX) {
+        tx = 1 - tx;
+    }
+
+    const u = Math.max(0, Math.min(1, tx));
+    const v = Math.max(0, Math.min(1, ty));
+
+    let targetX = (1 - u) * (1 - v) * screenTargets[0].x + u * (1 - v) * screenTargets[1].x + (1 - u) * v * screenTargets[2].x + u * v * screenTargets[3].x;
+    let targetY = (1 - u) * (1 - v) * screenTargets[0].y + u * (1 - v) * screenTargets[1].y + (1 - u) * v * screenTargets[2].y + u * v * screenTargets[3].y;
+
+    const avgX = filterX.filter(targetX, timestamp);
+    const avgY = filterY.filter(targetY, timestamp);
+
+    gazePointer.style.left = `${avgX}px`;
+    gazePointer.style.top = `${avgY}px`;
+
+    // --- PURE MAPPING & HEATMAP TRACKING FIRST ---
     gravityBuffer.push({ x: avgX, y: avgY });
     
     // Only reposition the relay button if we have a robust, dense heatmap cluster
@@ -298,7 +321,7 @@ function processGazeMapping(ex, ey, timestamp) {
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
-   
+}
 
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
