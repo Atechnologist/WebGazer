@@ -273,29 +273,30 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    /* 
-      --- GRAVITY WELL BUTTON MOVEMENT TEMPORARILY DISABLED ---
-      Button stays stationary so we can evaluate raw tracking accuracy and heatmap alignment.
-    */
-    /*
+    // --- RESTORED & OPTIMIZED GRAVITY WELL BUTTON MOVEMENT ---
     gravityBuffer.push({ x: avgX, y: avgY });
-    if (gravityBuffer.length >= gravityWindowSize) {
+    
+    // Keep a rolling window of recent gaze points to find the center mass
+    if (gravityBuffer.length > gravityWindowSize) {
+        gravityBuffer.shift();
+    }
+
+    if (gravityBuffer.length >= 30) { // Start pulling after a short buffer builds up
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        const padding = 150;
+        const padding = 50;
         if (centerMassX > padding && centerMassX < window.innerWidth - padding &&
             centerMassY > padding && centerMassY < window.innerHeight - padding) {
             
-            relayX += (centerMassX - relayX) * 0.05;
-            relayY += (centerMassY - relayY) * 0.05;
+            // Smoothly interpolate the relay button position toward the gaze center mass
+            relayX += (centerMassX - relayX) * 0.08;
+            relayY += (centerMassY - relayY) * 0.08;
             
             relayTarget.style.left = `${relayX}px`;
             relayTarget.style.top = `${relayY}px`;
         }
-        gravityBuffer.shift();
     }
-    */
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
