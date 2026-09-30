@@ -298,8 +298,7 @@ function processGazeMapping(ex, ey, timestamp) {
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
-    } catch(err) {}
-}
+   
 
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
