@@ -13,7 +13,7 @@ const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Gravity Well Dynamic Positioning State
+// Gravity Well Dynamic Positioning State (Currently bypassed for testing)
 let gravityBuffer = [];
 const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
 let relayX = window.innerWidth / 2;
@@ -273,15 +273,16 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-    // --- PURE MAPPING & HEATMAP TRACKING FIRST ---
+    /* 
+      --- GRAVITY WELL BUTTON MOVEMENT TEMPORARILY DISABLED ---
+      Button stays stationary so we can evaluate raw tracking accuracy and heatmap alignment.
+    */
+    /*
     gravityBuffer.push({ x: avgX, y: avgY });
-    
-    // Only reposition the relay button if we have a robust, dense heatmap cluster
     if (gravityBuffer.length >= gravityWindowSize) {
         const centerMassX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const centerMassY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Check if the gaze concentration is stable and on-screen before moving the button
         const padding = 150;
         if (centerMassX > padding && centerMassX < window.innerWidth - padding &&
             centerMassY > padding && centerMassY < window.innerHeight - padding) {
@@ -292,9 +293,9 @@ function processGazeMapping(ex, ey, timestamp) {
             relayTarget.style.left = `${relayX}px`;
             relayTarget.style.top = `${relayY}px`;
         }
-        
         gravityBuffer.shift();
     }
+    */
 
     renderHeatmapFootprint(avgX, avgY);
     checkRelayActivation(avgX, avgY);
@@ -356,7 +357,7 @@ window.onload = () => {
 };
 
 let bleDevice = null;
-bleCharacteristic = null;
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
