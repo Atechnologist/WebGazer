@@ -273,26 +273,29 @@ function processGazeMapping(ex, ey, timestamp) {
     gazePointer.style.left = `${avgX}px`;
     gazePointer.style.top = `${avgY}px`;
 
-   // --- HEATMAP SWEET SPOT CENTERING ---
+// --- ACCUMULATE GAZE FOR SWEET-SPOT DISCOVERY ---
     gravityBuffer.push({ x: avgX, y: avgY });
+    
+    // Once we have a robust sample size (~1.5 seconds of data)
     if (gravityBuffer.length >= gravityWindowSize) {
-        gravityBuffer.shift(); 
-        
-        // Center of mass of your actual gaze concentration (the heatmap sweet spot)
+        // Compute the true center of mass of your actual gaze concentration
         const sweetSpotX = gravityBuffer.reduce((sum, p) => sum + p.x, 0) / gravityBuffer.length;
         const sweetSpotY = gravityBuffer.reduce((sum, p) => sum + p.y, 0) / gravityBuffer.length;
         
-        // Let the sliding relay button track the sweet spot smoothly
-        relayX += (sweetSpotX - relayX) * 0.05;
-        relayY += (sweetSpotY - relayY) * 0.05;
+        // Lock or gently glide the relay button precisely onto your heatmap sweet spot
+        relayX += (sweetSpotX - relayX) * 0.1;
+        relayY += (sweetSpotY - relayY) * 0.1;
         
-        // Safe boundaries tightly coupled around where your eyes naturally look
-        const padding = 120;
+        // Ensure it stays comfortably on screen
+        const padding = 100;
         relayX = Math.max(padding, Math.min(window.innerWidth - padding, relayX));
         relayY = Math.max(padding, Math.min(window.innerHeight - padding, relayY));
         
         relayTarget.style.left = `${relayX}px`;
         relayTarget.style.top = `${relayY}px`;
+        
+        // Keep buffer stable by trimming old entries
+        gravityBuffer.shift();
     }
 
     renderHeatmapFootprint(avgX, avgY);
