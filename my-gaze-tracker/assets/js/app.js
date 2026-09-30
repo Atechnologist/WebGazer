@@ -15,7 +15,7 @@ const ctx = heatmapCanvas.getContext('2d');
 
 // Gravity Well Dynamic Positioning State
 let gravityBuffer = [];
-const gravityWindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
+const WindowSize = 90; // ~3 frames (~1.5 to 3 seconds)
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 
@@ -297,7 +297,6 @@ function processGazeMapping(ex, ey, timestamp) {
         // Keep buffer stable by trimming old entries
         gravityBuffer.shift();
     }
-
     renderHeatmapFootprint(avgX, avgY);
     try {
         checkRelayActivation(avgX, avgY);
