@@ -201,8 +201,8 @@ async function checkRelayActivation(gazeX, gazeY) {
     const relayRect = relayTarget.getBoundingClientRect();
     const gazePointerRect = gazePointer.getBoundingClientRect();
 
-    // Use a dual-check: either direct coordinate padding OR element bounding collision
-    const padding = 25; // Slightly larger forgiveness zone for easier triggering
+    // Forgiving dual-check boundary evaluation
+    const padding = 25;
     const isColliding = (
         (gazeX >= (relayRect.left - padding) && gazeX <= (relayRect.right + padding) &&
          gazeY >= (relayRect.top - padding) && gazeY <= (relayRect.bottom + padding)) ||
@@ -229,7 +229,7 @@ async function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = "💥 RELAY ACTIVE!";
         log("Dwell reached 100%! Firing hardware trigger...");
 
-        // Await the hardware trigger so the promise resolves cleanly
+        // Await the hardware trigger promise
         await triggerHardwareRelay();
 
         setTimeout(() => {
@@ -245,6 +245,10 @@ async function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = `RELAY SWITCH [${percent}%]`;
     }
 }
+
+window.onload = () => {
+    setTimeout(initSystem, 1000);
+};
 
 // --- HARDWARE BLE TRIGGER ---
 async function triggerHardwareRelay() {
