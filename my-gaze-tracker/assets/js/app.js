@@ -5,15 +5,10 @@ const debugLog = document.getElementById('debug-console');
 
 // UI Panel Elements
 const invertXCheck = document.getElementById('invert-x-check');
+const mouseCalibCheck = document.getElementById('mouse-calib-check');
 const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
-
-// Physics / D3-style Relay Position State (Relay follows gaze smoothly)
-let relayX = window.innerWidth / 2;
-let relayY = window.innerHeight / 2;
-let targetRelayX = window.innerWidth / 2;
-let targetRelayY = window.innerHeight / 2;
 
 // Dwell Capacitor State
 let dwellProgress = 0;       
@@ -41,6 +36,15 @@ window.addEventListener('resize', () => {
 window.updateSettings = function() {
     invertX = invertXCheck.checked;
     log(`Config changed: InvertX=${invertX}`);
+};
+
+window.updateMouseRegression = function() {
+    const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
+    
+    if (typeof webgazer !== 'undefined' && typeof webgazer.applyMouseEventRegression === 'function') {
+        webgazer.applyMouseEventRegression(useMouse);
+        log(`Continuous mouse calibration: ${useMouse ? 'ENABLED' : 'DISABLED'}`);
+    }
 };
 
 window.toggleSettings = function() {
@@ -78,8 +82,7 @@ async function initSystem() {
             processGazeMapping(x, y, timestamp);
         }).begin();
 
-        // Respect the initial checkbox setting on boot for continuous mouse regression
-        const mouseCalibCheck = document.getElementById('mouse-calib-check');
+        // Respect initial checkbox setting on boot for continuous mouse regression
         const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
         if (typeof webgazer.applyMouseEventRegression === 'function') {
             webgazer.applyMouseEventRegression(useMouse);
@@ -91,7 +94,7 @@ async function initSystem() {
 
         statusText.innerText = "WebGazer ready. Click Start Calibration.";
         startBtn.disabled = false;
-        log(`WebGazer engine initialized successfully. Continuous mouse calibration: ${useMouse}`);
+        log(`WebGazer engine initialized successfully. Mouse calibration: ${useMouse}`);
 
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
@@ -111,7 +114,6 @@ window.startCalibration = function(event) {
 };
 
 function setupCalibrationGrid() {
-    // Define 9 standard calibration screen coordinates (margins included)
     const w = window.innerWidth;
     const h = window.innerHeight;
     
@@ -132,7 +134,7 @@ function spawnCalibrationPoint(coords) {
         
         isTrackingActive = true;
         gazePointer.style.display = 'block';
-        relayTarget.style.display = 'flex';
+        if (relayTarget) relayTarget.style.display = 'flex';
         statusText.innerText = "Calibration Complete! Relay active.";
         log("Calibration complete. Tracking live.");
         return;
@@ -141,11 +143,7 @@ function spawnCalibrationPoint(coords) {
     const pt = coords[currentCalibIndex];
     const dot = document.getElementById('calib-dot');
     
-    if (!dot) {
-        console.error("Calibration dot element (#calib-dot) missing from HTML!");
-        log("Error: #calib-dot missing from DOM.");
-        return;
-    }
+    if (!dot) return;
 
     dot.style.left = `${pt.x}px`;
     dot.style.top = `${pt.y}px`;
@@ -156,46 +154,51 @@ function spawnCalibrationPoint(coords) {
     let clickCount = 0;
     dot.innerText = "5";
 
-    log(`Calibration point ${currentCalibIndex + 1}/9 spawned at X:${Math.round(pt.x)}, Y:${Math.round(pt.y)}`);
-
     dot.onclick = (e) => {
         e.stopPropagation();
         clickCount++;
-        // Record screen position into WebGazer's ridge regression model
         webgazer.recordScreenPosition(pt.x, pt.y, 'click');
         
         dot.innerText = `${5 - clickCount}`;
-        log(`Calibration point clicked (${clickCount}/5)`);
         
         if (clickCount >= 5) {
             dot.onclick = null;
             dot.style.display = 'none';
             currentCalibIndex++;
-            setTimeout(() => spawnCalibrationPoint(coords), 300); // Small pause between points
+            setTimeout(() => spawnCalibrationPoint(coords), 300);
         }
     };
 }
 
-// --- GAZE MAPPING & SMOOTH RELAY FOLLOWER ---
+// --- GAZE MAPPING & SMOOTH RELAY FOLLOWER (BROWN BALL STYLE) ---
 function processGazeMapping(x, y, timestamp) {
-    gazePointer.style.left = `${x}px`;
-    gazePointer.style.top = `${y}px`;
+    // 1. Smooth the green gaze pointer position
+    const currentGazeX = parseFloat(gazePointer.style.left) || x;
+    const currentGazeY = parseFloat(gazePointer.style.top) || y;
+    const smoothedGazeX = currentGazeX + (x - currentGazeX) * 0.2;
+    const smoothedGazeY = currentGazeY + (y - currentGazeY) * 0.2;
 
-    // Relay button directly follows gaze destination with smooth D3 spring interpolation
-    targetRelayX = x;
-    targetRelayY = y;
+    gazePointer.style.left = `${smoothedGazeX}px`;
+    gazePointer.style.top = `${smoothedGazeY}px`;
 
-    relayX += (targetRelayX - relayX) * 0.15;
-    relayY += (targetRelayY - relayY) * 0.15;
+    // 2. Make the Relay Button smoothly follow your gaze with a gentle lag (0.05)
+    if (relayTarget) {
+        const currentRelayX = parseFloat(relayTarget.style.left) || window.innerWidth / 2;
+        const currentRelayY = parseFloat(relayTarget.style.top) || window.innerHeight / 2;
+        
+        const smoothRelayX = currentRelayX + (x - currentRelayX) * 0.05;
+        const smoothRelayY = currentRelayY + (y - currentRelayY) * 0.05;
 
-    const margin = 80;
-    relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
-    relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
+        // Keep it nicely bounded within screen margins
+        const margin = 80;
+        const boundedX = Math.max(margin, Math.min(window.innerWidth - margin, smoothRelayX));
+        const boundedY = Math.max(margin, Math.min(window.innerHeight - margin, smoothRelayY));
 
-    relayTarget.style.left = `${relayX}px`;
-    relayTarget.style.top = `${relayY}px`;
+        relayTarget.style.left = `${boundedX}px`;
+        relayTarget.style.top = `${boundedY}px`;
+    }
 
-    renderHeatmapFootprint(x, y);
+    renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
     checkRelayActivation();
 }
 
@@ -207,7 +210,7 @@ function renderHeatmapFootprint(x, y) {
 }
 
 function checkRelayActivation() {
-    if (isCoolingDown) return;
+    if (isCoolingDown || !relayTarget) return;
 
     const relayRect = relayTarget.getBoundingClientRect();
     const gazePointerRect = gazePointer.getBoundingClientRect();
@@ -278,13 +281,3 @@ async function triggerHardwareRelay() {
         log("Webhook Error: Failed to reach ESPHome device.");
     }
 }
-const mouseCalibCheck = document.getElementById('mouse-calib-check');
-
-window.updateMouseRegression = function() {
-    const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
-    
-    if (typeof webgazer !== 'undefined' && typeof webgazer.applyMouseEventRegression === 'function') {
-        webgazer.applyMouseEventRegression(useMouse);
-        log(`Continuous mouse calibration: ${useMouse ? 'ENABLED' : 'DISABLED'}`);
-    }
-};
