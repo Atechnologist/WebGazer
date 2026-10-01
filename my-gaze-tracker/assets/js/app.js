@@ -170,11 +170,7 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & GRAVITY WELL FOLLOWER ---
-// Keeps a rolling buffer of recent gaze points to calculate a stable center of mass
-let gazeGravityBuffer = [];
-const maxBufferSize = 15;
-
+// --- GAZE MAPPING & FIXED RELAY TARGET (TEST MODE) ---
 function processGazeMapping(x, y, timestamp) {
     // 1. Smooth the green gaze pointer position
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
@@ -185,36 +181,13 @@ function processGazeMapping(x, y, timestamp) {
     gazePointer.style.left = `${smoothedGazeX}px`;
     gazePointer.style.top = `${smoothedGazeY}px`;
 
-    // 2. Add points to the gravity buffer for center-of-mass calculation
-    gazeGravityBuffer.push({x: smoothedGazeX, y: smoothedGazeY});
-    if (gazeGravityBuffer.length > maxBufferSize) {
-        gazeGravityBuffer.shift();
-    }
-
-    // 3. Compute the center of mass (the "gravity well") from the buffer
-    let avgX = gazeGravityBuffer.reduce((sum, pt) => sum + pt.x, 0) / gazeGravityBuffer.length;
-    let avgY = gazeGravityBuffer.reduce((sum, pt) => sum + pt.y, 0) / gazeGravityBuffer.length;
-
-    // 4. Make the Relay Button smoothly drift toward this center of mass instead of chasing raw jittery coordinates
-    if (relayTarget) {
-        const currentRelayX = parseFloat(relayTarget.style.left) || window.innerWidth / 2;
-        const currentRelayY = parseFloat(relayTarget.style.top) || window.innerHeight / 2;
-        
-        const smoothRelayX = currentRelayX + (avgX - currentRelayX) * 0.08;
-        const smoothRelayY = currentRelayY + (avgY - currentRelayY) * 0.08;
-
-        // Boundary clamping so it never runs away off-screen
-        const margin = 100;
-        const boundedX = Math.max(margin, Math.min(window.innerWidth - margin, smoothRelayX));
-        const boundedY = Math.max(margin, Math.min(window.innerHeight - margin, smoothRelayY));
-
-        relayTarget.style.left = `${boundedX}px`;
-        relayTarget.style.top = `${boundedY}px`;
-    }
-
+    // 2. Render heatmap footprint
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
+
+    // 3. Check collision against the stationary relay button
     checkRelayActivation();
 }
+
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
@@ -228,6 +201,7 @@ function checkRelayActivation() {
     const relayRect = relayTarget.getBoundingClientRect();
     const gazePointerRect = gazePointer.getBoundingClientRect();
 
+    // Standard static boundary collision check
     const isColliding = !(
         gazePointerRect.right < relayRect.left || 
         gazePointerRect.left > relayRect.right || 
