@@ -181,38 +181,13 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- BLE & HARDWARE WEBHOOK INTEGRATION ---
-let bleDevice = null;
-let bleCharacteristic = null;
-
-async function connectBLE() {
-    try {
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) statusEl.innerText = "Status: Scanning...";
-
-        bleDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'atom-relay-node' }],
-            optionalServices: ['12345678-1234-1234-1234-1234567890ab']
-        });
-
-        const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService('12345678-1234-1234-1234-1234567890ab');
-        bleCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-ba9876543210');
-
-        if (statusEl) statusEl.innerText = "Status: Connected";
-        log("Connected to Atom Lite via BLE.");
-    } catch (err) {
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) statusEl.innerText = "Status: Failed";
-        console.error("BLE Connection error:", err);
-    }
-}
-
+// --- HARDWARE WEBHOOK & BLE TRIGGER FALLBACK ---
 async function triggerHardwareRelay() {
-    if (bleCharacteristic) {
+    // If window.bleCharacteristic is available from the HTML script block, use it
+    if (typeof window.bleCharacteristic !== 'undefined' && window.bleCharacteristic) {
         try {
             const encoder = new TextEncoder();
-            await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
+            await window.bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
             log("💥 Relay command sent over BLE");
             return;
         } catch (err) {
