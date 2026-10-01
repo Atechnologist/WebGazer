@@ -78,13 +78,20 @@ async function initSystem() {
             processGazeMapping(x, y, timestamp);
         }).begin();
 
+        // Respect the initial checkbox setting on boot for continuous mouse regression
+        const mouseCalibCheck = document.getElementById('mouse-calib-check');
+        const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
+        if (typeof webgazer.applyMouseEventRegression === 'function') {
+            webgazer.applyMouseEventRegression(useMouse);
+        }
+
         // Keep video preview active for user feedback, hide default prediction dots
         webgazer.showPredictionPoints(false);
         webgazer.showVideoPreview(true);
 
         statusText.innerText = "WebGazer ready. Click Start Calibration.";
         startBtn.disabled = false;
-        log("WebGazer engine initialized successfully.");
+        log(`WebGazer engine initialized successfully. Continuous mouse calibration: ${useMouse}`);
 
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
@@ -271,3 +278,13 @@ async function triggerHardwareRelay() {
         log("Webhook Error: Failed to reach ESPHome device.");
     }
 }
+const mouseCalibCheck = document.getElementById('mouse-calib-check');
+
+window.updateMouseRegression = function() {
+    const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
+    
+    if (typeof webgazer !== 'undefined' && typeof webgazer.applyMouseEventRegression === 'function') {
+        webgazer.applyMouseEventRegression(useMouse);
+        log(`Continuous mouse calibration: ${useMouse ? 'ENABLED' : 'DISABLED'}`);
+    }
+};
