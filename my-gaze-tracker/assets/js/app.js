@@ -250,15 +250,20 @@ window.onload = () => {
 async function triggerHardwareRelay() {
     if (typeof window.bleCharacteristic !== 'undefined' && window.bleCharacteristic) {
         try {
+            // Convert string command to a proper Uint8Array buffer for Web Bluetooth
             const encoder = new TextEncoder();
-            await window.bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
+            const commandBytes = encoder.encode("RELAY_TOGGLE\n");
+            
+            await window.bleCharacteristic.writeValue(commandBytes);
             log("💥 Relay command sent over BLE to Atom Lite");
             return;
         } catch (err) {
             console.error("BLE write failed, falling back to network webhook:", err);
+            log("BLE write error: " + err.message);
         }
     }
     
+    // Fallback to local network webhook if BLE isn't active
     try {
         const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
         const img = new Image();
