@@ -170,7 +170,7 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & FIXED RELAY TARGET (DIRECT HITTEST) ---
+// --- GAZE MAPPING & STATIONARY RELAY SWITCH INTERACTION ---
 function processGazeMapping(x, y, timestamp) {
     // 1. Smooth the green gaze pointer position
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
@@ -184,7 +184,7 @@ function processGazeMapping(x, y, timestamp) {
     // 2. Render heatmap footprint
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
 
-    // 3. Check collision using the direct smoothed gaze coordinates
+    // 3. Check direct hit-test collision against the static relay switch
     checkRelayActivation(smoothedGazeX, smoothedGazeY);
 }
 
@@ -200,8 +200,7 @@ function checkRelayActivation(gazeX, gazeY) {
 
     const relayRect = relayTarget.getBoundingClientRect();
 
-    // Direct hit test: Check if the gaze coordinates are inside the relay button's box
-    // (We add a small padding buffer of 15px around the button to make it more forgiving to look at)
+    // Direct hit test with a 15px forgiveness padding
     const padding = 15;
     const isColliding = (
         gazeX >= (relayRect.left - padding) &&
@@ -247,13 +246,13 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- HARDWARE WEBHOOK & BLE TRIGGER FALLBACK ---
+// --- HARDWARE WEBHOOK & BLE TRIGGER ---
 async function triggerHardwareRelay() {
     if (typeof window.bleCharacteristic !== 'undefined' && window.bleCharacteristic) {
         try {
             const encoder = new TextEncoder();
             await window.bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
-            log("💥 Relay command sent over BLE");
+            log("💥 Relay command sent over BLE to Atom Lite");
             return;
         } catch (err) {
             console.error("BLE write failed, falling back to network webhook:", err);
@@ -264,8 +263,8 @@ async function triggerHardwareRelay() {
         const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
         const img = new Image();
         img.src = `${targetUrl}?timestamp=${Date.now()}`;
-        log("Hardware webhook dispatched via beacon.");
+        log("Atom Lite hardware webhook dispatched successfully.");
     } catch (err) {
-        log("Webhook Error: Failed to reach ESPHome device.");
+        log("Webhook Error: Failed to reach Atom Lite device.");
     }
 }
