@@ -31,13 +31,11 @@ function log(msg) {
     if(debugLog) debugLog.innerText = "System Log: " + msg; 
 }
 
-// Window Size Adaptability
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
 });
 
-// Settings Listeners
 window.updateSettings = function() {
     invertX = invertXCheck.checked;
     log(`Config changed: InvertX=${invertX}`);
@@ -53,16 +51,20 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-// --- INITIALIZE OFFICIAL WEBGAZER ENGINE ---
+// --- INITIALIZE OFFICIAL WEBGAZER ENGINE WITH SAFETY CHECK ---
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
+        // Explicit check to catch missing script tags or blocked CDNs instantly
+        if (typeof webgazer === 'undefined') {
+            throw new Error("WebGazer library is not loaded. Check your HTML script tag or ad-blockers.");
+        }
+
         log("Booting official WebGazer engine...");
         
-        // Start WebGazer and set up the gaze listener callback loop
-        webgazer.setGazeListener((data, timestamp) => {
+        await webgazer.setGazeListener((data, timestamp) => {
             if (!data || !isTrackingActive) return;
 
             let x = data.x;
@@ -75,9 +77,8 @@ async function initSystem() {
             processGazeMapping(x, y, timestamp);
         }).begin();
 
-        // Configure WebGazer UI visibility (hide native red dot so we use our custom one)
         webgazer.showPredictionPoints(false);
-        webgazer.showVideoPreview(true); // Set to false if you prefer hiding the webcam preview box
+        webgazer.showVideoPreview(true);
 
         statusText.innerText = "WebGazer active. Click Start Calibration to begin.";
         startBtn.disabled = false;
@@ -85,12 +86,11 @@ async function initSystem() {
 
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Ensure HTTPS connection.";
+        statusText.innerText = "Setup stalled. Ensure HTTPS/localhost and check console.";
         console.error(err);
     }
 }
 
-// Calibration Handler (WebGazer handles its own point collection or standard clicks)
 window.startCalibration = function(event) {
     if (event) event.stopPropagation();
     startBtn.style.display = 'none';
@@ -104,19 +104,15 @@ window.startCalibration = function(event) {
 
 // --- GAZE MAPPING & D3 COLLISION SIMULATION ---
 function processGazeMapping(x, y, timestamp) {
-    // Update custom pointer position
     gazePointer.style.left = `${x}px`;
     gazePointer.style.top = `${y}px`;
 
-    // Target destination for the sliding relay button (D3 force style)
     targetRelayX = x;
     targetRelayY = y;
 
-    // Smooth spring interpolation
     relayX += (targetRelayX - relayX) * 0.15;
     relayY += (targetRelayY - relayY) * 0.15;
 
-    // Clamp bounds to keep the button safely on screen
     const margin = 80;
     relayX = Math.max(margin, Math.min(window.innerWidth - margin, relayX));
     relayY = Math.max(margin, Math.min(window.innerHeight - margin, relayY));
@@ -141,7 +137,6 @@ function checkRelayActivation() {
     const relayRect = relayTarget.getBoundingClientRect();
     const gazePointerRect = gazePointer.getBoundingClientRect();
 
-    // Check collision overlap between gaze pointer and the button element
     const isColliding = !(
         gazePointerRect.right < relayRect.left || 
         gazePointerRect.left > relayRect.right || 
@@ -188,7 +183,7 @@ window.onload = () => {
 
 // --- BLE & HARDWARE WEBHOOK INTEGRATION ---
 let bleDevice = null;
-bleCharacteristic = null; // Declared once globally
+let bleCharacteristic = null;
 
 async function connectBLE() {
     try {
