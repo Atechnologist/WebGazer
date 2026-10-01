@@ -246,29 +246,27 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- HARDWARE WEBHOOK & BLE TRIGGER ---
+// --- HARDWARE BLE TRIGGER (PROVEN WORKING METHOD) ---
 async function triggerHardwareRelay() {
-    if (typeof window.bleCharacteristic !== 'undefined' && window.bleCharacteristic) {
+    if (typeof bleCharacteristic !== 'undefined' && bleCharacteristic) {
         try {
-            // Convert string command to a proper Uint8Array buffer for Web Bluetooth
             const encoder = new TextEncoder();
-            const commandBytes = encoder.encode("RELAY_TOGGLE\n");
-            
-            await window.bleCharacteristic.writeValue(commandBytes);
-            log("💥 Relay command sent over BLE to Atom Lite");
+            await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
+            log("💥 Relay command sent successfully over BLE!");
             return;
-        } catch (err) {
-            console.error("BLE write failed, falling back to network webhook:", err);
-            log("BLE write error: " + err.message);
+        } catch (error) {
+            console.error("Lost BLE connection or write failed, resetting characteristic:", error);
+            log("BLE write error, attempting fallback...");
+            bleCharacteristic = null;
         }
     }
     
-    // Fallback to local network webhook if BLE isn't active
+    // Fallback network webhook if BLE isn't connected
     try {
         const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
         const img = new Image();
         img.src = `${targetUrl}?timestamp=${Date.now()}`;
-        log("Atom Lite hardware webhook dispatched successfully.");
+        log("Atom Lite hardware webhook dispatched.");
     } catch (err) {
         log("Webhook Error: Failed to reach Atom Lite device.");
     }
