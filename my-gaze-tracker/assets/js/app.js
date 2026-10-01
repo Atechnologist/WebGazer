@@ -170,7 +170,7 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & FIXED RELAY TARGET (TEST MODE) ---
+// --- GAZE MAPPING & FIXED RELAY TARGET (DIRECT HITTEST) ---
 function processGazeMapping(x, y, timestamp) {
     // 1. Smooth the green gaze pointer position
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
@@ -184,8 +184,8 @@ function processGazeMapping(x, y, timestamp) {
     // 2. Render heatmap footprint
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
 
-    // 3. Check collision against the stationary relay button
-    checkRelayActivation();
+    // 3. Check collision using the direct smoothed gaze coordinates
+    checkRelayActivation(smoothedGazeX, smoothedGazeY);
 }
 
 function renderHeatmapFootprint(x, y) {
@@ -195,18 +195,19 @@ function renderHeatmapFootprint(x, y) {
     ctx.fill();
 }
 
-function checkRelayActivation() {
+function checkRelayActivation(gazeX, gazeY) {
     if (isCoolingDown || !relayTarget) return;
 
     const relayRect = relayTarget.getBoundingClientRect();
-    const gazePointerRect = gazePointer.getBoundingClientRect();
 
-    // Standard static boundary collision check
-    const isColliding = !(
-        gazePointerRect.right < relayRect.left || 
-        gazePointerRect.left > relayRect.right || 
-        gazePointerRect.bottom < relayRect.top || 
-        gazePointerRect.top > relayRect.bottom
+    // Direct hit test: Check if the gaze coordinates are inside the relay button's box
+    // (We add a small padding buffer of 15px around the button to make it more forgiving to look at)
+    const padding = 15;
+    const isColliding = (
+        gazeX >= (relayRect.left - padding) &&
+        gazeX <= (relayRect.right + padding) &&
+        gazeY >= (relayRect.top - padding) &&
+        gazeY <= (relayRect.bottom + padding)
     );
 
     if (isColliding) {
