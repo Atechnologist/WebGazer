@@ -188,7 +188,7 @@ window.onload = () => {
 
 // --- BLE & HARDWARE WEBHOOK INTEGRATION ---
 let bleDevice = null;
-let bleCharacteristic = null; // Declared once globally
+//let bleCharacteristic = null; // Declared once globally
 
 async function connectBLE() {
     try {
