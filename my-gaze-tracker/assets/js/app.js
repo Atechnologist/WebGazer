@@ -195,18 +195,21 @@ function renderHeatmapFootprint(x, y) {
     ctx.fill();
 }
 
-function checkRelayActivation(gazeX, gazeY) {
+async function checkRelayActivation(gazeX, gazeY) {
     if (isCoolingDown || !relayTarget) return;
 
     const relayRect = relayTarget.getBoundingClientRect();
+    const gazePointerRect = gazePointer.getBoundingClientRect();
 
-    // Direct hit test with a 15px forgiveness padding
-    const padding = 15;
+    // Use a dual-check: either direct coordinate padding OR element bounding collision
+    const padding = 25; // Slightly larger forgiveness zone for easier triggering
     const isColliding = (
-        gazeX >= (relayRect.left - padding) &&
-        gazeX <= (relayRect.right + padding) &&
-        gazeY >= (relayRect.top - padding) &&
-        gazeY <= (relayRect.bottom + padding)
+        (gazeX >= (relayRect.left - padding) && gazeX <= (relayRect.right + padding) &&
+         gazeY >= (relayRect.top - padding) && gazeY <= (relayRect.bottom + padding)) ||
+        !(gazePointerRect.right < relayRect.left || 
+          gazePointerRect.left > relayRect.right || 
+          gazePointerRect.bottom < relayRect.top || 
+          gazePointerRect.top > relayRect.bottom)
     );
 
     if (isColliding) {
@@ -224,9 +227,10 @@ function checkRelayActivation(gazeX, gazeY) {
         relayTarget.classList.remove('gaze-hover');
         relayTarget.classList.add('triggered');
         relayTarget.innerText = "💥 RELAY ACTIVE!";
-        log("Relay trigger fired successfully!");
+        log("Dwell reached 100%! Firing hardware trigger...");
 
-        triggerHardwareRelay();
+        // Await the hardware trigger so the promise resolves cleanly
+        await triggerHardwareRelay();
 
         setTimeout(() => {
             dwellProgress = 0;
@@ -242,11 +246,7 @@ function checkRelayActivation(gazeX, gazeY) {
     }
 }
 
-window.onload = () => {
-    setTimeout(initSystem, 1000);
-};
-
-// --- HARDWARE BLE TRIGGER (PROVEN WORKING METHOD) ---
+// --- HARDWARE BLE TRIGGER ---
 async function triggerHardwareRelay() {
     if (typeof bleCharacteristic !== 'undefined' && bleCharacteristic) {
         try {
@@ -255,10 +255,12 @@ async function triggerHardwareRelay() {
             log("💥 Relay command sent successfully over BLE!");
             return;
         } catch (error) {
-            console.error("Lost BLE connection or write failed, resetting characteristic:", error);
-            log("BLE write error, attempting fallback...");
+            console.error("Lost BLE connection or write failed:", error);
+            log("BLE write error: " + error.message);
             bleCharacteristic = null;
         }
+    } else {
+        log("Warning: BLE characteristic is not initialized/connected.");
     }
     
     // Fallback network webhook if BLE isn't connected
