@@ -4,14 +4,12 @@ const startBtn = document.getElementById('start-btn');
 const debugLog = document.getElementById('debug-console');
 
 // UI Panel Elements
-const smoothRange = document.getElementById('smooth-range');
-const smoothVal = document.getElementById('smooth-val');
 const invertXCheck = document.getElementById('invert-x-check');
 const relayTarget = document.getElementById('relay-button-target');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
-// Physics / D3-style Relay Position State
+// Physics / D3-style Relay Position State (Relay follows gaze smoothly)
 let relayX = window.innerWidth / 2;
 let relayY = window.innerHeight / 2;
 let targetRelayX = window.innerWidth / 2;
@@ -26,6 +24,10 @@ const dwellDrainRate = 4.0;
 
 let invertX = false;
 let isTrackingActive = false;
+
+// Calibration State Variables
+let calibrationPoints = [];
+let currentCalibIndex = 0;
 
 function log(msg) { 
     if(debugLog) debugLog.innerText = "System Log: " + msg; 
@@ -51,13 +53,12 @@ window.clearHeatmap = function() {
     log("Heatmap surface buffer cleared.");
 };
 
-// --- INITIALIZE OFFICIAL WEBGAZER ENGINE WITH SAFETY CHECK ---
+// --- INITIALIZE OFFICIAL WEBGAZER ENGINE ---
 async function initSystem() {
     try {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        // Explicit check to catch missing script tags or blocked CDNs instantly
         if (typeof webgazer === 'undefined') {
             throw new Error("WebGazer library is not loaded. Check your HTML script tag or ad-blockers.");
         }
@@ -77,10 +78,11 @@ async function initSystem() {
             processGazeMapping(x, y, timestamp);
         }).begin();
 
+        // Keep video preview active for user feedback, hide default prediction dots
         webgazer.showPredictionPoints(false);
         webgazer.showVideoPreview(true);
 
-        statusText.innerText = "WebGazer active. Click Start Calibration to begin.";
+        statusText.innerText = "WebGazer ready. Click Start Calibration.";
         startBtn.disabled = false;
         log("WebGazer engine initialized successfully.");
 
@@ -91,22 +93,77 @@ async function initSystem() {
     }
 }
 
+// --- OFFICIAL WEBGAZER STYLE 9-POINT CALIBRATION ---
 window.startCalibration = function(event) {
     if (event) event.stopPropagation();
     startBtn.style.display = 'none';
-    statusText.innerText = "Look around the screen and interact to calibrate.";
-    
-    isTrackingActive = true;
-    gazePointer.style.display = 'block';
-    relayTarget.classList.add('active-ready');
-    log("Gaze tracking and relay activation live.");
+    statusText.innerText = "Calibration Mode: Click each red dot 5 times while looking at it.";
+    log("Starting interactive 9-point calibration routine.");
+
+    setupCalibrationGrid();
 };
 
-// --- GAZE MAPPING & D3 COLLISION SIMULATION ---
+function setupCalibrationGrid() {
+    // Define 9 standard calibration screen coordinates (margins included)
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    
+    const coords = [
+        {x: w * 0.1, y: h * 0.1}, {x: w * 0.5, y: h * 0.1}, {x: w * 0.9, y: h * 0.1},
+        {x: w * 0.1, y: h * 0.5}, {x: w * 0.5, y: h * 0.5}, {x: w * 0.9, y: h * 0.5},
+        {x: w * 0.1, y: h * 0.9}, {x: w * 0.5, y: h * 0.9}, {x: w * 0.9, y: h * 0.9}
+    ];
+
+    currentCalibIndex = 0;
+    spawnCalibrationPoint(coords);
+}
+
+function spawnCalibrationPoint(coords) {
+    if (currentCalibIndex >= coords.length) {
+        // Calibration finished! Launch live tracking mode.
+        const dot = document.getElementById('calib-dot');
+        if (dot) dot.style.display = 'none';
+        
+        isTrackingActive = true;
+        gazePointer.style.display = 'block';
+        relayTarget.style.display = 'flex';
+        statusText.innerText = "Calibration Complete! Relay active.";
+        log("Calibration complete. Tracking live.");
+        return;
+    }
+
+    const pt = coords[currentCalibIndex];
+    const dot = document.getElementById('calib-dot');
+    
+    dot.style.left = `${pt.x}px`;
+    dot.style.top = `${pt.y}px`;
+    dot.style.display = 'block';
+    
+    let clickCount = 0;
+    dot.innerText = "5";
+
+    // Override click handler for training data collection
+    dot.onclick = (e) => {
+        clickCount++;
+        // Record screen position into WebGazer's ridge regression model
+        webgazer.recordScreenPosition(pt.x, pt.y, 'click');
+        
+        dot.innerText = `${5 - clickCount}`;
+        
+        if (clickCount >= 5) {
+            dot.onclick = null;
+            currentCalibIndex++;
+            spawnCalibrationPoint(coords);
+        }
+    };
+}
+
+// --- GAZE MAPPING & SMOOTH RELAY FOLLOWER ---
 function processGazeMapping(x, y, timestamp) {
     gazePointer.style.left = `${x}px`;
     gazePointer.style.top = `${y}px`;
 
+    // Relay button directly follows gaze destination with smooth D3 spring interpolation
     targetRelayX = x;
     targetRelayY = y;
 
@@ -183,7 +240,6 @@ window.onload = () => {
 
 // --- HARDWARE WEBHOOK & BLE TRIGGER FALLBACK ---
 async function triggerHardwareRelay() {
-    // If window.bleCharacteristic is available from the HTML script block, use it
     if (typeof window.bleCharacteristic !== 'undefined' && window.bleCharacteristic) {
         try {
             const encoder = new TextEncoder();
