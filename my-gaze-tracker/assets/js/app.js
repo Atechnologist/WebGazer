@@ -170,7 +170,11 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & SMOOTH RELAY FOLLOWER (BROWN BALL STYLE) ---
+// --- GAZE MAPPING & GRAVITY WELL FOLLOWER ---
+// Keeps a rolling buffer of recent gaze points to calculate a stable center of mass
+let gazeGravityBuffer = [];
+const maxBufferSize = 15;
+
 function processGazeMapping(x, y, timestamp) {
     // 1. Smooth the green gaze pointer position
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
@@ -181,16 +185,26 @@ function processGazeMapping(x, y, timestamp) {
     gazePointer.style.left = `${smoothedGazeX}px`;
     gazePointer.style.top = `${smoothedGazeY}px`;
 
-    // 2. Make the Relay Button smoothly follow your gaze with a gentle lag (0.05)
+    // 2. Add points to the gravity buffer for center-of-mass calculation
+    gazeGravityBuffer.push({x: smoothedGazeX, y: smoothedGazeY});
+    if (gazeGravityBuffer.length > maxBufferSize) {
+        gazeGravityBuffer.shift();
+    }
+
+    // 3. Compute the center of mass (the "gravity well") from the buffer
+    let avgX = gazeGravityBuffer.reduce((sum, pt) => sum + pt.x, 0) / gazeGravityBuffer.length;
+    let avgY = gazeGravityBuffer.reduce((sum, pt) => sum + pt.y, 0) / gazeGravityBuffer.length;
+
+    // 4. Make the Relay Button smoothly drift toward this center of mass instead of chasing raw jittery coordinates
     if (relayTarget) {
         const currentRelayX = parseFloat(relayTarget.style.left) || window.innerWidth / 2;
         const currentRelayY = parseFloat(relayTarget.style.top) || window.innerHeight / 2;
         
-        const smoothRelayX = currentRelayX + (x - currentRelayX) * 0.05;
-        const smoothRelayY = currentRelayY + (y - currentRelayY) * 0.05;
+        const smoothRelayX = currentRelayX + (avgX - currentRelayX) * 0.08;
+        const smoothRelayY = currentRelayY + (avgY - currentRelayY) * 0.08;
 
-        // Keep it nicely bounded within screen margins
-        const margin = 80;
+        // Boundary clamping so it never runs away off-screen
+        const margin = 100;
         const boundedX = Math.max(margin, Math.min(window.innerWidth - margin, smoothRelayX));
         const boundedY = Math.max(margin, Math.min(window.innerHeight - margin, smoothRelayY));
 
@@ -201,7 +215,6 @@ function processGazeMapping(x, y, timestamp) {
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
     checkRelayActivation();
 }
-
 function renderHeatmapFootprint(x, y) {
     ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
     ctx.beginPath();
