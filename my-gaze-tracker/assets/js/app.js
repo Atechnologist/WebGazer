@@ -120,7 +120,6 @@ function setupCalibrationGrid() {
 
 function spawnCalibrationPoint(coords) {
     if (currentCalibIndex >= coords.length) {
-        // Calibration finished! Launch live tracking mode.
         const dot = document.getElementById('calib-dot');
         if (dot) dot.style.display = 'none';
         
@@ -135,25 +134,37 @@ function spawnCalibrationPoint(coords) {
     const pt = coords[currentCalibIndex];
     const dot = document.getElementById('calib-dot');
     
+    if (!dot) {
+        console.error("Calibration dot element (#calib-dot) missing from HTML!");
+        log("Error: #calib-dot missing from DOM.");
+        return;
+    }
+
     dot.style.left = `${pt.x}px`;
     dot.style.top = `${pt.y}px`;
-    dot.style.display = 'block';
+    dot.style.display = 'flex';
+    dot.style.justifyContent = 'center';
+    dot.style.alignItems = 'center';
     
     let clickCount = 0;
     dot.innerText = "5";
 
-    // Override click handler for training data collection
+    log(`Calibration point ${currentCalibIndex + 1}/9 spawned at X:${Math.round(pt.x)}, Y:${Math.round(pt.y)}`);
+
     dot.onclick = (e) => {
+        e.stopPropagation();
         clickCount++;
         // Record screen position into WebGazer's ridge regression model
         webgazer.recordScreenPosition(pt.x, pt.y, 'click');
         
         dot.innerText = `${5 - clickCount}`;
+        log(`Calibration point clicked (${clickCount}/5)`);
         
         if (clickCount >= 5) {
             dot.onclick = null;
+            dot.style.display = 'none';
             currentCalibIndex++;
-            spawnCalibrationPoint(coords);
+            setTimeout(() => spawnCalibrationPoint(coords), 300); // Small pause between points
         }
     };
 }
