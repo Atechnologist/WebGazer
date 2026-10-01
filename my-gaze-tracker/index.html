@@ -78,7 +78,7 @@
 
     </div>
 
-    <!-- Web Bluetooth Integration Script -->
+   <!-- Web Bluetooth Integration Script -->
     <script>
         const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
         const CHAR_UUID = "87654321-4321-4321-4321-ba9876543210";
@@ -103,33 +103,12 @@
                 document.getElementById('connectionStatus').innerText = "Status: Error - " + error.message;
             }
         }
-
-        async function triggerRelayCommand() {
-            if (!bleCharacteristic) {
-                alert("Please pair the Atom Lite via BLE first using the button in the top right.");
-                await connectBLE();
-                return;
-            }
-            try {
-                const encoder = new TextEncoder();
-                await bleCharacteristic.writeValue(encoder.encode("RELAY_TOGGLE"));
-                const target = document.getElementById('relay-button-target');
-                target.style.background = "#2ed573";
-                target.innerText = "💥 RELAY ACTIVE!";
-                setTimeout(() => {
-                    target.style.background = "#d9534f";
-                    target.innerText = "RELAY SWITCH [0%]";
-                }, 1500);
-            } catch (error) {
-                console.error("BLE Write failed, reconnecting...", error);
-                bleCharacteristic = null;
-                document.getElementById('connectionStatus').innerText = "Status: Disconnected (Reconnection needed)";
-            }
-        }
     </script>
      
-    <!-- Put this in your HTML <head> BEFORE app.js -->
-     <script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
-     <script src="app.js" defer></script>
+    <!-- 1. Load WebGazer Engine First -->
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js"></script>
+    
+    <!-- 2. Load your local app.js script second -->
+    <script src="app.js"></script>
 </body>
 </html>
