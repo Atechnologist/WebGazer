@@ -45,6 +45,9 @@
         <div class="setting-item">
             <label><input type="checkbox" id="toggle-fixed" checked onchange="toggleElementVisibility()"> Show Fixed Test Target</label>
         </div>
+        <label style="display: block; margin-top: 10px; color: #fff; font-family: sans-serif;">
+        <input type="checkbox" id="mouse-calib-check" onchange="updateMouseRegression()"> Continuous Mouse Calibration
+        </label>
         <div class="control-group">
             <button onclick="clearHeatmap()" style="width:100%; background:#ff3366; color:white; border:none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom:5px;">Clear Heatmap</button>
         </div>
