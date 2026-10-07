@@ -1,0 +1,15 @@
+{
+  "name": "Eye-Tracking Emergency Relay",
+  "short_name": "GazeRelay",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#00ffcc",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
