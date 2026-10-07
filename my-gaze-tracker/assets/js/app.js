@@ -24,6 +24,9 @@ let isTrackingActive = false;
 let calibrationPoints = [];
 let currentCalibIndex = 0;
 
+// D3 HUD Elements
+let d3Svg, hudLine;
+
 function log(msg) { 
     if(debugLog) debugLog.innerText = "System Log: " + msg; 
 }
@@ -31,6 +34,9 @@ function log(msg) {
 window.addEventListener('resize', () => {
     heatmapCanvas.width = window.innerWidth;
     heatmapCanvas.height = window.innerHeight;
+    if (d3Svg) {
+        d3Svg.attr('width', window.innerWidth).attr('height', window.innerHeight);
+    }
 });
 
 window.updateSettings = function() {
@@ -40,7 +46,6 @@ window.updateSettings = function() {
 
 window.updateMouseRegression = function() {
     const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
-    
     if (typeof webgazer !== 'undefined' && typeof webgazer.applyMouseEventRegression === 'function') {
         webgazer.applyMouseEventRegression(useMouse);
         log(`Continuous mouse calibration: ${useMouse ? 'ENABLED' : 'DISABLED'}`);
@@ -63,8 +68,11 @@ async function initSystem() {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
+        // Initialize D3 HUD Overlay for the collision/tether line
+        initD3Hud();
+
         if (typeof webgazer === 'undefined') {
-            throw new Error("WebGazer library is not loaded. Check your HTML script tag or ad-blockers.");
+            throw new Error("WebGazer library is not loaded. Check your script tags or ad-blockers.");
         }
 
         log("Booting official WebGazer engine...");
@@ -82,13 +90,11 @@ async function initSystem() {
             processGazeMapping(x, y, timestamp);
         }).begin();
 
-        // Respect initial checkbox setting on boot for continuous mouse regression
         const useMouse = mouseCalibCheck ? mouseCalibCheck.checked : false;
         if (typeof webgazer.applyMouseEventRegression === 'function') {
             webgazer.applyMouseEventRegression(useMouse);
         }
 
-        // Keep video preview active for user feedback, hide default prediction dots
         webgazer.showPredictionPoints(false);
         webgazer.showVideoPreview(true);
 
@@ -103,13 +109,34 @@ async function initSystem() {
     }
 }
 
+// --- D3.JS HUD VECTOR TETHER SETUP ---
+function initD3Hud() {
+    if (typeof d3 === 'undefined') return;
+
+    d3Svg = d3.select('body')
+        .append('svg')
+        .attr('id', 'd3-hud-overlay')
+        .attr('width', window.innerWidth)
+        .attr('height', window.innerHeight)
+        .style('position', 'fixed')
+        .style('top', '0')
+        .style('left', '0')
+        .style('pointer-events', 'none')
+        .style('z-index', '998'); // Just behind the gaze pointer
+
+    hudLine = d3Svg.append('line')
+        .attr('class', 'gaze-hud-tether')
+        .attr('stroke', 'rgba(0, 255, 153, 0.4)')
+        .attr('stroke-width', '2')
+        .attr('stroke-dasharray', '4,4');
+}
+
 // --- OFFICIAL WEBGAZER STYLE 9-POINT CALIBRATION ---
 window.startCalibration = function(event) {
     if (event) event.stopPropagation();
     startBtn.style.display = 'none';
     statusText.innerText = "Calibration Mode: Click each red dot 5 times while looking at it.";
     log("Starting interactive 9-point calibration routine.");
-
     setupCalibrationGrid();
 };
 
@@ -170,9 +197,8 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & STATIONARY RELAY SWITCH INTERACTION ---
+// --- GAZE MAPPING & D3 HUD TETHER RENDERING ---
 function processGazeMapping(x, y, timestamp) {
-    // 1. Smooth the green gaze pointer position
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
     const currentGazeY = parseFloat(gazePointer.style.top) || y;
     const smoothedGazeX = currentGazeX + (x - currentGazeX) * 0.2;
@@ -181,10 +207,10 @@ function processGazeMapping(x, y, timestamp) {
     gazePointer.style.left = `${smoothedGazeX}px`;
     gazePointer.style.top = `${smoothedGazeY}px`;
 
-    // 2. Render heatmap footprint
+    // Render heatmap footprint
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
 
-    // 3. Check direct hit-test collision against the static relay switch
+    // Check hit-test collision & update D3 HUD tether line
     checkRelayActivation(smoothedGazeX, smoothedGazeY);
 }
 
@@ -196,12 +222,24 @@ function renderHeatmapFootprint(x, y) {
 }
 
 async function checkRelayActivation(gazeX, gazeY) {
-    if (isCoolingDown || !relayTarget) return;
+    if (!relayTarget) return;
 
     const relayRect = relayTarget.getBoundingClientRect();
-    const gazePointerRect = gazePointer.getBoundingClientRect();
+    const relayCenterX = relayRect.left + relayRect.width / 2;
+    const relayCenterY = relayRect.top + relayRect.height / 2;
 
-    // Forgiving dual-check boundary evaluation
+    // Update D3 HUD Tether Line connecting gaze pointer to the relay center
+    if (hudLine && isTrackingActive) {
+        hudLine
+            .attr('x1', gazeX)
+            .attr('y1', gazeY)
+            .attr('x2', relayCenterX)
+            .attr('y2', relayCenterY);
+    }
+
+    if (isCoolingDown) return;
+
+    const gazePointerRect = gazePointer.getBoundingClientRect();
     const padding = 25;
     const isColliding = (
         (gazeX >= (relayRect.left - padding) && gazeX <= (relayRect.right + padding) &&
@@ -215,9 +253,15 @@ async function checkRelayActivation(gazeX, gazeY) {
     if (isColliding) {
         dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
         relayTarget.classList.add('gaze-hover');
+        if (hudLine) {
+            hudLine.attr('stroke', '#ff3366').attr('stroke-width', '4').attr('stroke-dasharray', null); // Collision lock style!
+        }
     } else {
         dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
         relayTarget.classList.remove('gaze-hover');
+        if (hudLine) {
+            hudLine.attr('stroke', 'rgba(0, 255, 153, 0.4)').attr('stroke-width', '2').attr('stroke-dasharray', '4,4');
+        }
     }
 
     if (dwellProgress >= 100 && !isTriggered) {
@@ -229,7 +273,6 @@ async function checkRelayActivation(gazeX, gazeY) {
         relayTarget.innerText = "💥 RELAY ACTIVE!";
         log("Dwell reached 100%! Firing hardware trigger...");
 
-        // Await the hardware trigger promise
         await triggerHardwareRelay();
 
         setTimeout(() => {
@@ -267,7 +310,6 @@ async function triggerHardwareRelay() {
         log("Warning: BLE characteristic is not initialized/connected.");
     }
     
-    // Fallback network webhook if BLE isn't connected
     try {
         const targetUrl = 'http://atom-relay-node.local/buttons/web_pulse_button/press';
         const img = new Image();
