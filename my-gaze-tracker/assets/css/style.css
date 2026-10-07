@@ -113,3 +113,31 @@ button:disabled {
     transform: translate(-50%, -50%) scale(1.0);
 }
 
+/* --- PRECISION GRID & ANCHOR STYLES --- */
+.grid-node {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(20, 20, 30, 0.7);
+    border: 2px solid rgba(0, 255, 153, 0.3);
+    color: #00ff99;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 10px;
+    font-family: monospace;
+    transform: translate(-50%, -50%);
+    transition: all 0.2s ease;
+}
+
+.anchor-node {
+    opacity: 0.3; /* Subtle anchors so they serve as calibration zones without cluttering the screen */
+    pointer-events: none;
+}
+
+.anchor-node.active-calibration {
+    border-color: #00ffcc;
+    background: rgba(0, 255, 204, 0.2);
+    opacity: 0.8;
+}
