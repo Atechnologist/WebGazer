@@ -7,6 +7,7 @@ const debugLog = document.getElementById('debug-console');
 const invertXCheck = document.getElementById('invert-x-check');
 const mouseCalibCheck = document.getElementById('mouse-calib-check');
 const relayTarget = document.getElementById('relay-button-target');
+const gazeGrid = document.getElementById('gaze-grid');
 const heatmapCanvas = document.getElementById('heatmap-canvas');
 const ctx = heatmapCanvas.getContext('2d');
 
@@ -21,7 +22,6 @@ let invertX = false;
 let isTrackingActive = false;
 
 // Calibration State Variables
-let calibrationPoints = [];
 let currentCalibIndex = 0;
 
 // D3 HUD Elements
@@ -68,11 +68,10 @@ async function initSystem() {
         heatmapCanvas.width = window.innerWidth;
         heatmapCanvas.height = window.innerHeight;
 
-        // Initialize D3 HUD Overlay for the collision/tether line
         initD3Hud();
 
         if (typeof webgazer === 'undefined') {
-            throw new Error("WebGazer library is not loaded. Check your script tags or ad-blockers.");
+            throw new Error("WebGazer library is not loaded. Check script tags or CDNs.");
         }
 
         log("Booting official WebGazer engine...");
@@ -104,7 +103,7 @@ async function initSystem() {
 
     } catch (err) {
         log("Fatal Boot Error: " + err.message);
-        statusText.innerText = "Setup stalled. Ensure HTTPS/localhost and check console.";
+        statusText.innerText = "Setup stalled. Check console.";
         console.error(err);
     }
 }
@@ -122,16 +121,16 @@ function initD3Hud() {
         .style('top', '0')
         .style('left', '0')
         .style('pointer-events', 'none')
-        .style('z-index', '998'); // Just behind the gaze pointer
+        .style('z-index', '988');
 
     hudLine = d3Svg.append('line')
         .attr('class', 'gaze-hud-tether')
-        .attr('stroke', 'rgba(0, 255, 153, 0.4)')
+        .attr('stroke', 'rgba(0, 255, 153, 0.3)')
         .attr('stroke-width', '2')
         .attr('stroke-dasharray', '4,4');
 }
 
-// --- OFFICIAL WEBGAZER STYLE 9-POINT CALIBRATION ---
+// --- CALIBRATION ROUTINE ---
 window.startCalibration = function(event) {
     if (event) event.stopPropagation();
     startBtn.style.display = 'none';
@@ -161,15 +160,14 @@ function spawnCalibrationPoint(coords) {
         
         isTrackingActive = true;
         gazePointer.style.display = 'block';
-        if (relayTarget) relayTarget.style.display = 'flex';
-        statusText.innerText = "Calibration Complete! Relay active.";
-        log("Calibration complete. Tracking live.");
+        if (gazeGrid) gazeGrid.style.display = 'block';
+        statusText.innerText = "Calibration Complete! Precision Grid & Relay active.";
+        log("Calibration complete. Precision grid active.");
         return;
     }
 
     const pt = coords[currentCalibIndex];
     const dot = document.getElementById('calib-dot');
-    
     if (!dot) return;
 
     dot.style.left = `${pt.x}px`;
@@ -185,7 +183,6 @@ function spawnCalibrationPoint(coords) {
         e.stopPropagation();
         clickCount++;
         webgazer.recordScreenPosition(pt.x, pt.y, 'click');
-        
         dot.innerText = `${5 - clickCount}`;
         
         if (clickCount >= 5) {
@@ -197,7 +194,7 @@ function spawnCalibrationPoint(coords) {
     };
 }
 
-// --- GAZE MAPPING & D3 HUD TETHER RENDERING ---
+// --- GAZE MAPPING & IMPLICIT SELF-CALIBRATION ---
 function processGazeMapping(x, y, timestamp) {
     const currentGazeX = parseFloat(gazePointer.style.left) || x;
     const currentGazeY = parseFloat(gazePointer.style.top) || y;
@@ -207,15 +204,12 @@ function processGazeMapping(x, y, timestamp) {
     gazePointer.style.left = `${smoothedGazeX}px`;
     gazePointer.style.top = `${smoothedGazeY}px`;
 
-    // Render heatmap footprint
     renderHeatmapFootprint(smoothedGazeX, smoothedGazeY);
-
-    // Check hit-test collision & update D3 HUD tether line
     checkRelayActivation(smoothedGazeX, smoothedGazeY);
 }
 
 function renderHeatmapFootprint(x, y) {
-    ctx.fillStyle = 'rgba(255, 51, 102, 0.04)';
+    ctx.fillStyle = 'rgba(255, 51, 102, 0.03)';
     ctx.beginPath();
     ctx.arc(x, y, 35, 0, 2 * Math.PI);
     ctx.fill();
@@ -228,7 +222,7 @@ async function checkRelayActivation(gazeX, gazeY) {
     const relayCenterX = relayRect.left + relayRect.width / 2;
     const relayCenterY = relayRect.top + relayRect.height / 2;
 
-    // Update D3 HUD Tether Line connecting gaze pointer to the relay center
+    // Update D3 HUD Tether Line
     if (hudLine && isTrackingActive) {
         hudLine
             .attr('x1', gazeX)
@@ -237,30 +231,42 @@ async function checkRelayActivation(gazeX, gazeY) {
             .attr('y2', relayCenterY);
     }
 
+    // Implicit Micro-Calibration for Outer Grid Anchors
+    const anchors = document.querySelectorAll('.anchor-node');
+    anchors.forEach(anchor => {
+        const rect = anchor.getBoundingClientRect();
+        if (
+            gazeX >= rect.left && gazeX <= rect.right &&
+            gazeY >= rect.top && gazeY <= rect.bottom
+        ) {
+            const targetX = rect.left + rect.width / 2;
+            const targetY = rect.top + rect.height / 2;
+            if (typeof webgazer !== 'undefined' && typeof webgazer.recordScreenPosition === 'function') {
+                webgazer.recordScreenPosition(targetX, targetY, 'cluster');
+            }
+        }
+    });
+
     if (isCoolingDown) return;
 
-    const gazePointerRect = gazePointer.getBoundingClientRect();
-    const padding = 25;
-    const isColliding = (
-        (gazeX >= (relayRect.left - padding) && gazeX <= (relayRect.right + padding) &&
-         gazeY >= (relayRect.top - padding) && gazeY <= (relayRect.bottom + padding)) ||
-        !(gazePointerRect.right < relayRect.left || 
-          gazePointerRect.left > relayRect.right || 
-          gazePointerRect.bottom < relayRect.top || 
-          gazePointerRect.top > relayRect.bottom)
+    // Center Emergency Relay Collision Check
+    const padding = 30;
+    const isCollidingCenter = (
+        gazeX >= (relayRect.left - padding) && gazeX <= (relayRect.right + padding) &&
+        gazeY >= (relayRect.top - padding) && gazeY <= (relayRect.bottom + padding)
     );
 
-    if (isColliding) {
+    if (isCollidingCenter) {
         dwellProgress = Math.min(100, dwellProgress + dwellChargeRate);
         relayTarget.classList.add('gaze-hover');
         if (hudLine) {
-            hudLine.attr('stroke', '#ff3366').attr('stroke-width', '4').attr('stroke-dasharray', null); // Collision lock style!
+            hudLine.attr('stroke', '#ff3366').attr('stroke-width', '4').attr('stroke-dasharray', null);
         }
     } else {
         dwellProgress = Math.max(0, dwellProgress - dwellDrainRate);
         relayTarget.classList.remove('gaze-hover');
         if (hudLine) {
-            hudLine.attr('stroke', 'rgba(0, 255, 153, 0.4)').attr('stroke-width', '2').attr('stroke-dasharray', '4,4');
+            hudLine.attr('stroke', 'rgba(0, 255, 153, 0.3)').attr('stroke-width', '2').attr('stroke-dasharray', '4,4');
         }
     }
 
@@ -293,7 +299,7 @@ window.onload = () => {
     setTimeout(initSystem, 1000);
 };
 
-// --- HARDWARE BLE TRIGGER ---
+// --- HARDWARE BLE & WEBHOOK TRIGGER ---
 async function triggerHardwareRelay() {
     if (typeof bleCharacteristic !== 'undefined' && bleCharacteristic) {
         try {
@@ -302,7 +308,7 @@ async function triggerHardwareRelay() {
             log("💥 Relay command sent successfully over BLE!");
             return;
         } catch (error) {
-            console.error("Lost BLE connection or write failed:", error);
+            console.error("BLE write failed:", error);
             log("BLE write error: " + error.message);
             bleCharacteristic = null;
         }
