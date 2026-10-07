@@ -31,6 +31,25 @@
     <div style="position: fixed; top: 20px; left: 20px; z-index: 999;">
         <button id="settings-btn" onclick="toggleSettings()" style="padding: 10px 15px; background: #444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">⚙️ Settings</button>
     </div>
+    <!-- Precision Gaze Grid Container -->
+<div id="gaze-grid" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 990;">
+    <!-- Outer Stabilizer/Anchor Nodes (8 surrounding cells) -->
+    <div class="grid-node anchor-node" data-x="0.15" data-y="0.15" style="top: 15%; left: 15%;">ANCHOR</div>
+    <div class="grid-node anchor-node" data-x="0.50" data-y="0.15" style="top: 15%; left: 50%; transform: translateX(-50%);">ANCHOR</div>
+    <div class="grid-node anchor-node" data-x="0.85" data-y="0.15" style="top: 15%; right: 15%;">ANCHOR</div>
+    
+    <div class="grid-node anchor-node" data-x="0.15" data-y="0.50" style="top: 50%; left: 15%; transform: translateY(-50%);">ANCHOR</div>
+    <div class="grid-node anchor-node" data-x="0.85" data-y="0.50" style="top: 50%; right: 15%; transform: translateY(-50%);">ANCHOR</div>
+    
+    <div class="grid-node anchor-node" data-x="0.15" data-y="0.85" style="bottom: 15%; left: 15%;">ANCHOR</div>
+    <div class="grid-node anchor-node" data-x="0.50" data-y="0.85" style="bottom: 15%; left: 50%; transform: translateX(-50%);">ANCHOR</div>
+    <div class="grid-node anchor-node" data-x="0.85" data-y="0.85" style="bottom: 15%; right: 15%;">ANCHOR</div>
+
+    <!-- Center Emergency Relay Node -->
+    <div id="relay-button-target" class="grid-node center-relay" style="top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: auto;">
+        RELAY SWITCH [0%]
+    </div>
+</div>
 
     <div id="settings-panel" style="display: none; position: fixed; top: 70px; left: 20px; background: rgba(0,0,0,0.9); padding: 20px; border-radius: 8px; z-index: 1000; color: white; font-family: sans-serif; width: 300px;">
         <div class="control-group" style="margin-bottom: 15px;">
