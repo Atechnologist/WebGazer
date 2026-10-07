@@ -75,7 +75,7 @@
         <div id="connectionStatus" style="font-size: 12px; margin-top: 6px; color: #aaa;">Status: Disconnected</div>
     </div>
 
-    <!-- Centered Single Relay Target Element -->
+    <!-- Centered Single Relay Target Element 
     <div id="gaze-comparison-container" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; z-index: 9999; font-family: sans-serif;">
         <div style="text-align: center;">
             <div id="relay-button-target" style="width: 140px; height: 140px; background: #d9534f; color: white; border: 3px solid #00ffcc; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; text-align: center; cursor: pointer; box-shadow: 0 4px 15px rgba(0,255,204,0.3); position: relative;">
@@ -84,7 +84,7 @@
             <div style="color: #00ffcc; font-size: 11px; margin-top: 8px;">Dwell Target</div>
         </div>
     </div>
-
+    -->
    <!-- Web Bluetooth Integration Script -->
     <script>
         const SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
@@ -117,5 +117,18 @@
     
     <!-- Load local app.js script second -->
     <script src="assets/js/app.js"></script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => {
+          console.log('Service Worker registered successfully with scope:', reg.scope);
+        })
+        .catch((err) => {
+          console.log('Service Worker registration failed:', err);
+        });
+    });
+  }
+</script>
 </body>
 </html>
